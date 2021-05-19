@@ -20,11 +20,10 @@ public class SdisUtils {
 
             final MessageDigest digest = MessageDigest.getInstance("SHA3-256");
             final byte[] hashbytes = digest.digest(originalString.getBytes(StandardCharsets.US_ASCII));
-            String fileHash = bytesToHex(hashbytes);
-            return fileHash;
+            return bytesToHex(hashbytes);
         }
         catch (IOException | NoSuchAlgorithmException e) {
-            System.out.println(e.toString());
+            System.out.println("[X] Couldn't create file hash. " + e);
         }
         return null;
     }

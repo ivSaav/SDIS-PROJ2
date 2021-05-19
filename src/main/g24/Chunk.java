@@ -1,9 +1,19 @@
 package main.g24;
 
-import java.io.*;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.Serial;
+import java.io.Serializable;
+import java.nio.*;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+
 
 public class Chunk implements Serializable {
 
@@ -42,21 +52,26 @@ public class Chunk implements Serializable {
         this.replications.remove(peerId);
     }
 
-    @SuppressWarnings("ResultOfMethodCallIgnored")
     public void store(Peer peer, byte[] contents) {
-        File file = new File(peer.getStoragePath(filehash) + chunkNo);
+
+        Path path = Paths.get(peer.getStoragePath(filehash) + chunkNo);
+
         try {
-            file.getParentFile().mkdirs();
-            file.createNewFile();
-            FileOutputStream out = new FileOutputStream(file);
-            out.write(contents);
-            out.flush();
-            out.close();
+            // create parent dirs
+            Files.createDirectories(path.getParent());
+
+            Files.createFile(path);
+
+            ByteBuffer buffer = ByteBuffer.wrap(contents);
+            FileChannel fileChannel = FileChannel.open(path, StandardOpenOption.WRITE);
+
+            fileChannel.write(buffer);
+            fileChannel.close();
 
             this.addReplication(peer.getId());
         }
         catch (IOException e) {
-            System.out.println("[!] Couldn't locate specified file " + file.getName());
+            System.out.println("[!] Couldn't locate specified file " + path);
             e.printStackTrace();
             System.exit(1);
         }
@@ -65,13 +80,17 @@ public class Chunk implements Serializable {
     public byte[] retrieve(Peer peer) {
         // fetch backed up chunk
         byte[] body = new byte[this.size];
-        File file = new File(peer.getStoragePath(this.filehash) + chunkNo);
+        Path path = Paths.get(peer.getStoragePath(this.filehash) + chunkNo);
+
         try {
-            FileInputStream fstream = new FileInputStream(file);
-            int num_read = fstream.read(body);
-            fstream.close();
+            ByteBuffer buffer = ByteBuffer.wrap(body);
+            FileChannel fileChannel = FileChannel.open(path, StandardOpenOption.READ);
+
+            fileChannel.read(buffer);
+            fileChannel.close();
+
         } catch (FileNotFoundException e) {
-            System.out.println("[!] Couldn't locate file (retrieve)");
+            System.out.println("[!] Couldn't locate file (retrieve): " + path);
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
@@ -80,23 +99,37 @@ public class Chunk implements Serializable {
     }
 
     public boolean removeStorage(Peer peer) {
-        File file = new File(peer.getStoragePath(filehash) + this.chunkNo);
-        if (!file.exists()) {
-            System.out.printf("[!] Couldn't locate %s \n", file.getPath());
+        Path path = Paths.get(peer.getStoragePath(this.filehash) + chunkNo);
+
+        try {
+            if (!Files.deleteIfExists(path)) {
+                System.out.printf("[!] Couldn't locate %s \n", path);
+                return false;
+            }
+            else {
+                peer.decreaseDiskUsage(this.size);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
             return false;
         }
-        boolean wasDeleted = file.delete();
-        if (wasDeleted)
-            peer.decreaseDiskUsage(this.size);
-        return wasDeleted;
+
+        return true;
     }
 
     public static boolean removeFileDir(Peer peer, String filehash) {
-        File file = new File(peer.getStoragePath(filehash));
-        if (file.exists() && file.isDirectory() && Objects.requireNonNull(file.list()).length == 0) {
-            return file.delete();
+
+        Path path = Paths.get(peer.getStoragePath(filehash));
+
+        try {
+            // try to delete storage dir
+            return Files.deleteIfExists(path);
+        } catch (IOException e) {
+            System.out.println("Couldn't delete storage dir: " + path);
+            e.printStackTrace();
+            return false;
         }
-        return false;
     }
 
     public void addPeersWithChunk(Set<Integer> peers) {

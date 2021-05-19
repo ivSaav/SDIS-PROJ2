@@ -149,6 +149,7 @@ public class Peer implements ClientPeerProtocol, Serializable {
             this.hasChanges = true; // flag for peer backup
         }
         catch (IOException e) {
+            System.out.println("[!] Couldn't store file: " + path);
             e.printStackTrace();
             return "failure";
         }

@@ -4,6 +4,8 @@ import main.g24.message.ChunkMonitor;
 import main.g24.message.Message;
 import main.g24.message.MessageType;
 
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -266,7 +268,10 @@ public class Peer implements ClientPeerProtocol, Serializable {
                     } else{
                         // Enhancement
                         String[] tcp_details = new String(cm.getData(), StandardCharsets.US_ASCII).split(":");
-                        Socket socket = new Socket(InetAddress.getByName(tcp_details[0]), Integer.parseInt(tcp_details[1]));
+
+                        SSLSocketFactory sslSocketFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+
+                        SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(InetAddress.getByName(tcp_details[0]), Integer.parseInt(tcp_details[1]));
                         InputStream is = socket.getInputStream();
 
                         data = is.readAllBytes();

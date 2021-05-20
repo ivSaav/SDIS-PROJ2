@@ -7,9 +7,14 @@ import main.g24.SdisUtils;
 import main.g24.message.ChunkMonitor;
 import main.g24.message.Message;
 import main.g24.message.MessageType;
+import main.g24.sockets.SocketFactory;
 
+import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.SSLSocket;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
@@ -50,14 +55,17 @@ public class GetchunkHandler implements Handler {
         } else {
             // Improvement
             try {
-                ServerSocket serverSocket = new ServerSocket(0);
-                serverSocket.setSoTimeout(2000);
+                /*ServerSocket serverSocket = new ServerSocket(0);
+                serverSocket.setSoTimeout(2000);*/
+                SSLServerSocketFactory ssf = (SSLServerSocketFactory) SSLServerSocketFactory.getDefault();
+
+                SSLServerSocket serverSocket = (SSLServerSocket) ssf.createServerSocket(0);
 
                 byte[] body = (serverSocket.getInetAddress().getHostName() + ":" + serverSocket.getLocalPort()).getBytes(StandardCharsets.US_ASCII);
                 byte[] messageBytes = Message.createMessage(peer.getVersion(), MessageType.CHUNK, peer.getId(), message.fileId, message.chunkNo, body);
                 peer.getRestoreChannel().multicast(messageBytes);
 
-                Socket socket = serverSocket.accept();
+                SSLSocket socket = (SSLSocket) serverSocket.accept();
 
                 OutputStream os = socket.getOutputStream();
                 os.write(chunk.retrieve(peer));

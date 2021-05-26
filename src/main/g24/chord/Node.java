@@ -2,6 +2,7 @@ package main.g24.chord;
 
 import java.rmi.RemoteException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class Node implements INode {
@@ -16,7 +17,7 @@ public class Node implements INode {
 
     public Node(int id) {
         this.id = id;
-        this.fingers = new ArrayList<>(CHORD_BITS);
+        this.fingers = new ArrayList<>(Arrays.asList(new INode[CHORD_BITS]));
     }
 
     @Override
@@ -76,8 +77,11 @@ public class Node implements INode {
     @Override
     public INode closest_preceding_node(int id) throws RemoteException {
 
-        for (int i = CHORD_SIZE; i > 0; i--) {
+        for (int i = CHORD_BITS-1; i > 0; i--) {
             INode finger = fingers.get(i);
+
+            if (finger == null)
+                continue;
 
             if (is_in_range(this.id, finger.get_id(), id))
                 return finger;
@@ -109,11 +113,12 @@ public class Node implements INode {
      * Called periodically.
      * Asks the successor about its predecessor, verifies if n's immediate
      * successor is consistent, and tells the successor about this
+     * @return
      */
-    @Override
     public void stabilize() throws RemoteException {
         INode x = successor.get_predecessor();
-        if (is_in_range(id, successor.get_id(), x.get_id())) {
+
+        if (x != null && is_in_range(id, successor.get_id(), x.get_id())) {
             successor = x;
             on_new_successor();
         }
@@ -163,4 +168,20 @@ public class Node implements INode {
     }
 
     protected void on_predecessor_death() {}
+
+    @Override
+    public String toString() {
+        try {
+            return "Node {" +
+                    "id=" + id +
+                    ", nextFingerCheck=" + nextFingerCheck +
+                    ", predecessor=" + (predecessor != null ? predecessor.get_id() : null) +
+                    ", successor=" + (successor != null ? successor.get_id() : null) +
+                    ", fingers=" + fingers +
+                    '}';
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+        return "";
+    }
 }

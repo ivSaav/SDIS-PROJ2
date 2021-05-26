@@ -10,12 +10,12 @@ public class MulticastChannel extends Thread {
 
     private static final int BUFFER_MAX_SIZE = 64500;
 
-    private final Peer peer;
+    private final OldPeer peer;
     private final String group;
     private final int port;
     private final ThreadPoolExecutor poolExecutor;
 
-    public MulticastChannel(Peer peer, String address, int port, ThreadPoolExecutor poolExecutor) {
+    public MulticastChannel(OldPeer peer, String address, int port, ThreadPoolExecutor poolExecutor) {
         this.peer = peer;
         this.group = address;
         this.port = port;

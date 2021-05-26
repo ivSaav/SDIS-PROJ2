@@ -52,7 +52,7 @@ public class Chunk implements Serializable {
         this.replications.remove(peerId);
     }
 
-    public void store(Peer peer, byte[] contents) {
+    public void store(OldPeer peer, byte[] contents) {
 
         Path path = Paths.get(peer.getStoragePath(filehash) + chunkNo);
 
@@ -77,7 +77,7 @@ public class Chunk implements Serializable {
         }
     }
 
-    public byte[] retrieve(Peer peer) {
+    public byte[] retrieve(OldPeer peer) {
         // fetch backed up chunk
         byte[] body = new byte[this.size];
         Path path = Paths.get(peer.getStoragePath(this.filehash) + chunkNo);
@@ -98,7 +98,7 @@ public class Chunk implements Serializable {
         return body;
     }
 
-    public boolean removeStorage(Peer peer) {
+    public boolean removeStorage(OldPeer peer) {
         Path path = Paths.get(peer.getStoragePath(this.filehash) + chunkNo);
 
         try {
@@ -118,7 +118,7 @@ public class Chunk implements Serializable {
         return true;
     }
 
-    public static boolean removeFileDir(Peer peer, String filehash) {
+    public static boolean removeFileDir(OldPeer peer, String filehash) {
 
         Path path = Paths.get(peer.getStoragePath(filehash));
 

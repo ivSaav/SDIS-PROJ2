@@ -1,7 +1,7 @@
 package main.g24.message.handlers;
 
 import main.g24.MulticastChannel;
-import main.g24.Peer;
+import main.g24.OldPeer;
 import main.g24.SdisUtils;
 import main.g24.message.Message;
 import main.g24.message.MessageType;
@@ -9,10 +9,10 @@ import main.g24.message.MessageType;
 import java.util.Iterator;
 
 public class InitHandler implements Handler {
-    private final Peer peer;
+    private final OldPeer peer;
     private final Message message;
 
-    public InitHandler(Peer peer, Message message) {
+    public InitHandler(OldPeer peer, Message message) {
         this.peer = peer;
         this.message = message;
     }

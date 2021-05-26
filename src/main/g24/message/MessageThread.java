@@ -1,6 +1,6 @@
 package main.g24.message;
 
-import main.g24.Peer;
+import main.g24.OldPeer;
 import main.g24.SdisUtils;
 import main.g24.message.handlers.Handler;
 import main.g24.message.handlers.HandlerBuilder;
@@ -10,11 +10,11 @@ import java.net.DatagramPacket;
 public class MessageThread extends Thread {
 
     protected final DatagramPacket packet;
-    protected final Peer peer;
+    protected final OldPeer peer;
     protected Message message;
     protected Handler handler;
 
-    public MessageThread(Peer peer, DatagramPacket packet) {
+    public MessageThread(OldPeer peer, DatagramPacket packet) {
         this.peer = peer;
         this.packet = packet;
     }

@@ -1,7 +1,7 @@
 package main.g24.message.handlers;
 
 import main.g24.Chunk;
-import main.g24.Peer;
+import main.g24.OldPeer;
 import main.g24.SdisUtils;
 import main.g24.message.Message;
 import main.g24.message.MessageType;
@@ -11,10 +11,10 @@ import java.util.concurrent.TimeUnit;
 
 public class PutchunkHandler implements Handler {
 
-    private final Peer peer;
+    private final OldPeer peer;
     private final Message message;
 
-    public PutchunkHandler(Peer peer, Message message) {
+    public PutchunkHandler(OldPeer peer, Message message) {
         this.peer = peer;
         this.message = message;
     }

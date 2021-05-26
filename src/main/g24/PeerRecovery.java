@@ -3,9 +3,9 @@ package main.g24;
 import java.io.*;
 
 public class PeerRecovery implements Runnable {
-    private final Peer peer;
+    private final OldPeer peer;
 
-    public PeerRecovery(Peer peer) {
+    public PeerRecovery(OldPeer peer) {
         this.peer = peer;
         this.recoverData();
     }
@@ -56,7 +56,7 @@ public class PeerRecovery implements Runnable {
             // fetch backed up data
             FileInputStream fstream = new FileInputStream(file);
             ObjectInputStream ois = new ObjectInputStream(fstream);
-            Peer previous_version = (Peer) ois.readObject(); // reading object from serialized file
+            OldPeer previous_version = (OldPeer) ois.readObject(); // reading object from serialized file
 
             ois.close();
             fstream.close();

@@ -10,7 +10,7 @@ public class Node implements INode {
     private static final int CHORD_BITS = 8, CHORD_SIZE = (int) Math.pow(2,  CHORD_BITS);
 
     private final int id;
-    private int nextFingerCheck = 1;
+    private int nextFingerCheck = 0;
     private INode predecessor, successor;
 
     List<INode> fingers;
@@ -53,10 +53,16 @@ public class Node implements INode {
      */
     @Override
     public INode find_successor(int id) throws RemoteException {
-        if (is_in_successor_range(id))
+        if (successor != null && is_in_successor_range(id))
             return successor;
-        else
-            return closest_preceding_node(id).find_successor(id);
+        else {
+
+            INode n_ = closest_preceding_node(id);
+            System.out.println("N L " + n_.get_id() + " " + n_.get_predecessor().get_id());
+            INode ret = n_.find_successor(id);
+            System.out.println(" ret " + ret.get_id());
+            return ret;
+        }
     }
 
     private boolean is_in_range(int start, int end, int id) {
@@ -76,7 +82,6 @@ public class Node implements INode {
      */
     @Override
     public INode closest_preceding_node(int id) throws RemoteException {
-
         for (int i = CHORD_BITS-1; i > 0; i--) {
             INode finger = fingers.get(i);
 
@@ -86,7 +91,6 @@ public class Node implements INode {
             if (is_in_range(this.id, finger.get_id(), id))
                 return finger;
         }
-
         return this;
     }
 
@@ -148,11 +152,12 @@ public class Node implements INode {
      */
     @Override
     public void fix_fingers() throws RemoteException {
-        fingers.set(nextFingerCheck, find_successor(id + (int) Math.pow(2, nextFingerCheck - 1)));
+        System.out.println("FINGER " + nextFingerCheck + " " + (id + (int) Math.pow(2, nextFingerCheck)));
+        fingers.set(nextFingerCheck, find_successor(id + (int) Math.pow(2, nextFingerCheck)));
 
         nextFingerCheck++;
-        if (nextFingerCheck > CHORD_BITS)
-            nextFingerCheck = 1;
+        if (nextFingerCheck >= CHORD_BITS)
+            nextFingerCheck = 0;
     }
 
     /**
@@ -177,7 +182,6 @@ public class Node implements INode {
                     ", nextFingerCheck=" + nextFingerCheck +
                     ", predecessor=" + (predecessor != null ? predecessor.get_id() : null) +
                     ", successor=" + (successor != null ? successor.get_id() : null) +
-                    ", fingers=" + fingers +
                     '}';
         } catch (RemoteException e) {
             e.printStackTrace();

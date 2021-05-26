@@ -89,6 +89,7 @@ public class Peer extends Node implements ClientPeerProtocol {
 
         Registry registry = LocateRegistry.getRegistry();
         try {
+            String[] active = registry.list();
             ClientPeerProtocol stub = (ClientPeerProtocol) UnicastRemoteObject.exportObject(peer,0);
 
             //Bind the remote object's stub in the registry
@@ -96,12 +97,17 @@ public class Peer extends Node implements ClientPeerProtocol {
 
             // look for other peers in the ring
             ClientPeerProtocol root = peer;
-            String[] active = registry.list();
-            if (active.length > 0)
+            if (active.length > 0) {
                 root = (ClientPeerProtocol) registry.lookup(active[0]);
+                // join existing ring
+                peer.join((INode) root);
+            }
+            else {
+                System.out.println("I'm first");
+                peer.create();
+            }
 
-            // join existing ring
-            peer.join((INode) root);
+
 
         } catch (AlreadyBoundException e) {
             System.out.println("[R] Object already bound! Rebinding...");
@@ -118,7 +124,8 @@ public class Peer extends Node implements ClientPeerProtocol {
         scheduler.scheduleAtFixedRate(() -> {
             try {
                 peer.stabilize();
-            } catch (RemoteException e) {
+//                peer.fix_fingers();
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }, 1, 2, TimeUnit.SECONDS);

@@ -28,4 +28,6 @@ public interface INode extends Remote {
     }
 
     void check_predecessor() throws RemoteException;
+
+
 }

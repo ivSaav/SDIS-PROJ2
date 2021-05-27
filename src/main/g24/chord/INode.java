@@ -1,5 +1,6 @@
 package main.g24.chord;
 
+import java.net.InetAddress;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 
@@ -30,4 +31,12 @@ public interface INode extends Remote {
     void check_predecessor() throws RemoteException;
 
 
+    /* =============================
+                Methods
+       =============================
+     */
+     InetAddress get_address() throws RemoteException;
+     int get_port() throws RemoteException;
+
+     void storeFile(InetAddress initAddr, int initPort, int initId, String fileHash, long fileSize) throws RemoteException;
 }

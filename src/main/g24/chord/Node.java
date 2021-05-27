@@ -1,5 +1,6 @@
 package main.g24.chord;
 
+import java.net.InetAddress;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -12,13 +13,20 @@ public class Node implements INode {
     private final int id;
     private int nextFingerCheck = 0;
     private INode predecessor, successor;
+    protected final InetAddress addr;
+    protected final int port;
 
     List<INode> fingers;
 
-    public Node(int id) {
+    public Node(int id, InetAddress addr, int port) {
         this.id = id;
+        this.addr = addr;
+        this.port = port;
         this.fingers = new ArrayList<>(Arrays.asList(new INode[CHORD_BITS+1]));
     }
+
+    @Override
+    public void storeFile(InetAddress initAddr, int initPort, int initId, String fileHash, long fileSize) {}
 
     @Override
     public int get_id() {
@@ -34,6 +42,12 @@ public class Node implements INode {
     public INode get_successor() {
         return successor;
     }
+
+    @Override
+    public InetAddress get_address() throws RemoteException { return this.addr; }
+
+    @Override
+    public int get_port() throws RemoteException { return this.port; }
 
     private boolean is_in_successor_range(int id) throws RemoteException {
         int succ_id = successor.get_id();

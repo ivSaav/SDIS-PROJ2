@@ -87,6 +87,7 @@ public class Peer extends Node implements ClientPeerProtocol {
 
         Peer peer = new Peer(id);
 
+        System.out.println("REG");
         Registry registry = LocateRegistry.getRegistry();
         try {
             String[] active = registry.list();
@@ -107,13 +108,12 @@ public class Peer extends Node implements ClientPeerProtocol {
                 peer.create();
             }
 
-
-
         } catch (AlreadyBoundException e) {
             System.out.println("[R] Object already bound! Rebinding...");
             registry.rebind(service_ap, peer);
         } catch (ConnectException e) {
             System.out.println("[R] Could not connect to RMI!");
+            e.printStackTrace();
         } catch (NotBoundException e) {
             e.printStackTrace();
         }
@@ -124,7 +124,7 @@ public class Peer extends Node implements ClientPeerProtocol {
         scheduler.scheduleAtFixedRate(() -> {
             try {
                 peer.stabilize();
-//                peer.fix_fingers();
+                peer.fix_fingers();
             } catch (Exception e) {
                 e.printStackTrace();
             }

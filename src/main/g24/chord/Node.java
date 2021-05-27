@@ -17,7 +17,7 @@ public class Node implements INode {
 
     public Node(int id) {
         this.id = id;
-        this.fingers = new ArrayList<>(Arrays.asList(new INode[CHORD_BITS]));
+        this.fingers = new ArrayList<>(Arrays.asList(new INode[CHORD_BITS+1]));
     }
 
     @Override
@@ -53,16 +53,10 @@ public class Node implements INode {
      */
     @Override
     public INode find_successor(int id) throws RemoteException {
-        if (successor != null && is_in_successor_range(id))
+        if (is_in_successor_range(id))
             return successor;
-        else {
-
-            INode n_ = closest_preceding_node(id);
-            System.out.println("N L " + n_.get_id() + " " + n_.get_predecessor().get_id());
-            INode ret = n_.find_successor(id);
-            System.out.println(" ret " + ret.get_id());
-            return ret;
-        }
+        else
+            return successor.find_successor(id);
     }
 
     private boolean is_in_range(int start, int end, int id) {
@@ -85,10 +79,7 @@ public class Node implements INode {
         for (int i = CHORD_BITS-1; i > 0; i--) {
             INode finger = fingers.get(i);
 
-            if (finger == null)
-                continue;
-
-            if (is_in_range(this.id, finger.get_id(), id))
+            if (finger != null && is_in_range(this.id, id, finger.get_id()))
                 return finger;
         }
         return this;
@@ -152,12 +143,11 @@ public class Node implements INode {
      */
     @Override
     public void fix_fingers() throws RemoteException {
-        System.out.println("FINGER " + nextFingerCheck + " " + (id + (int) Math.pow(2, nextFingerCheck)));
-        fingers.set(nextFingerCheck, find_successor(id + (int) Math.pow(2, nextFingerCheck)));
-
         nextFingerCheck++;
         if (nextFingerCheck >= CHORD_BITS)
             nextFingerCheck = 0;
+
+        fingers.set(nextFingerCheck, find_successor(id + CHORD_SIZE));
     }
 
     /**

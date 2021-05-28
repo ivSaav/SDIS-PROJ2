@@ -1,5 +1,7 @@
 package main.g24.chord;
 
+import main.g24.FileDetails;
+
 import java.io.File;
 import java.net.InetAddress;
 import java.rmi.RemoteException;
@@ -187,7 +189,7 @@ public class Node implements INode {
     }
 
     @Override
-    public void storeFile(int initId, String fileHash, long fileSize) {}
+    public void storeFile(String fileHash, String storagePath) { }
 
     @Override
     public void removeFile(String file) throws RemoteException { }

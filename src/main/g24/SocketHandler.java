@@ -122,6 +122,7 @@ public class SocketHandler implements Runnable {
         if (n < 0) {
             System.out.println("Client socket closed.");
             key.channel().close();
+            fileChannel.close();
         }
     }
 

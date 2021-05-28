@@ -3,7 +3,6 @@ package main.g24;
 import main.g24.chord.INode;
 import main.g24.chord.Node;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.*;
 import java.nio.ByteBuffer;
@@ -23,6 +22,7 @@ import java.rmi.server.UnicastRemoteObject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.*;
 
 public class Peer extends Node implements ClientPeerProtocol {
@@ -34,7 +34,7 @@ public class Peer extends Node implements ClientPeerProtocol {
 
     private final Map<String, String> filenameHashes; // filename --> fileHash
     private final Map<String, FileDetails> initedFiles;
-    private final Map<String, FileDetails> storedFiles;
+    private final Set<String> storedFiles;
 
 
 
@@ -45,7 +45,7 @@ public class Peer extends Node implements ClientPeerProtocol {
         this.selector = new SocketHandler(this);
         this.filenameHashes = new ConcurrentHashMap<>();
         this.initedFiles = new ConcurrentHashMap<>();
-        this.storedFiles = new ConcurrentHashMap<>();
+        this.storedFiles = ConcurrentHashMap.newKeySet();
     }
 
     private void init(String service_ap) throws RemoteException {
@@ -114,24 +114,19 @@ public class Peer extends Node implements ClientPeerProtocol {
             ByteBuffer buffer = ByteBuffer.allocate(BLOCK_SIZE);
 
             String fileHash = SdisUtils.createFileHash(path, id);
+            this.filenameHashes.put(path, fileHash);
             if (fileHash == null)
                 return "failure";
-
-            this.filenameHashes.put(path, fileHash);
-            FileDetails details = new FileDetails(fileHash, size, repDegree);
-            this.initedFiles.put(fileHash, details);
 
             List<SocketChannel> successors = new ArrayList<>();
             INode nextNode = this;
             for (int i = 0; i < repDegree && i < CHORD_BITS; i++) {
-                 nextNode = this.find_successor(nextNode.get_id() + 1);
+                nextNode = this.find_successor(nextNode.get_id() + 1);
 
-                 // TODO verify if nextNode is live
+                // TODO verify if nextNode is live
 
                 // notify successor node
-                nextNode.storeFile(this.id, nextNode.getStoragePath(fileHash) , size);
-
-                details.addCopy(nextNode.get_id());
+                nextNode.storeFile(fileHash, nextNode.getStoragePath(fileHash));
 
                 SocketChannel socket = SocketChannel.open();
                 socket.connect(new InetSocketAddress(nextNode.get_address(), nextNode.get_port()));
@@ -169,28 +164,27 @@ public class Peer extends Node implements ClientPeerProtocol {
     }
 
     @Override
-    public void storeFile(int initId, String fileHash, long fileSize) {
-        this.selector.prepareReadOperation(fileHash);
+    public void storeFile(String fileHash, String storagePath) {
+        this.selector.prepareReadOperation(storagePath);
 
-        this.storedFiles.put(fileHash, new FileDetails(fileHash, fileSize, 0));
+        this.storedFiles.add(fileHash);
     }
 
     @Override
-    public void removeFile(String file) throws RemoteException {
+    public void removeFile(String fileHash) throws RemoteException {
 
-        String filePath = this.getStoragePath(file);
+        String filePath = this.getStoragePath(fileHash);
         Path path = Paths.get(filePath);
         try {
             Files.deleteIfExists(path);
 
-            this.storedFiles.remove(filePath);
+            this.storedFiles.remove(fileHash);
 
             // no stored files (remove subdirectories)
             if (this.storedFiles.isEmpty()) {
                 Files.deleteIfExists(path.getParent());
                 Files.deleteIfExists(path.getParent().getParent());
             }
-
         }
         catch (IOException e) {
             e.printStackTrace();

@@ -4,7 +4,7 @@ import java.io.Serializable;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class FileDetails {
+public class FileDetails implements Serializable {
 
     private final String hash;
     private final long size;

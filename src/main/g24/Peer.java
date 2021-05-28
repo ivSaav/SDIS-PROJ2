@@ -6,10 +6,7 @@ import main.g24.chord.Node;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ServerSocketChannel;
@@ -25,7 +22,7 @@ import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
-import java.util.Arrays;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -33,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 public class Peer extends Node implements ClientPeerProtocol {
 
     private final int id;
-    private static final int BLOCK_SIZE = 1024;
+    private static final int BLOCK_SIZE = 2048;
 
 
     // PEER
@@ -57,21 +54,21 @@ public class Peer extends Node implements ClientPeerProtocol {
 
             // connect to successor peer
             INode succ = this.get_successor();
-            SocketChannel socket = SocketChannel.open();
-            if (succ.alive()) {
-                System.out.println("ADDR " + succ.get_address().toString() + " PORT " + succ.get_port());
-                socket.connect(new InetSocketAddress(succ.get_address(), succ.get_port()));
-                succ.storeFile(this.addr, this.port, id, path, size);
+
+            if (!succ.alive()) {
+               // TODO fetch next successor
 
             }
-            else {
-                // TODO find another successor
-            }
+
+            // init server
+            succ.storeFile(this.id, path, size);
+
+            SocketChannel socket = SocketChannel.open();
+            socket.connect(new InetSocketAddress(succ.get_address(), succ.get_port()));
 
             int n;
             while ((n = fileChannel.read(buffer)) > 0) {
 
-                System.out.println("READ " + n);
                 // flip before writing
                 buffer.flip();
                 // write buffer to channel
@@ -82,56 +79,65 @@ public class Peer extends Node implements ClientPeerProtocol {
 
             socket.close();
             fileChannel.close();
+            return "success";
         }
         catch (IOException ioe) {
             ioe.printStackTrace();
         }
 
-        INode succ = this.get_successor();
-        INode pred = this.get_predecessor();
-        System.out.println("SUCC " + (succ != null ? succ.get_id() : null) + "\n PRED " + (pred != null ? pred.get_id() : null));
         return "failure";
     }
 
     @Override
-    public void storeFile(InetAddress initAddr, int initPort, int initId, String fileHash, long fileSize) {
+    public void storeFile(int initId, String fileHash, long fileSize) {
 
-        try {
-            Path filePath = Paths.get("./out/" + fileHash);
-            Files.createDirectories(filePath.getParent());
-            Files.createFile(filePath);
+        ExecutorService service = Executors.newSingleThreadExecutor();
 
-            FileChannel fileChannel = FileChannel.open(filePath, StandardOpenOption.WRITE, StandardOpenOption.APPEND);
+        service.execute(() -> {
+            try {
+                Path filePath = Paths.get("./out/" + fileHash);
+                Files.createDirectories(filePath.getParent());
+                Files.deleteIfExists(filePath);
+                Files.createFile(filePath);
 
-            ByteBuffer buffer = ByteBuffer.allocate(BLOCK_SIZE);
+                FileChannel fileChannel = FileChannel.open(filePath, StandardOpenOption.WRITE, StandardOpenOption.APPEND);
 
-            ServerSocketChannel serverSocket = ServerSocketChannel.open();
-            serverSocket.socket().bind(new InetSocketAddress(this.port));
-            SocketChannel client = serverSocket.accept();
+                ByteBuffer buffer = ByteBuffer.allocate(BLOCK_SIZE);
 
-//            SocketChannel socket = SocketChannel.open();
-//            socket.connect(new InetSocketAddress(this.addr, this.port));
+                ServerSocketChannel serverSocket = ServerSocketChannel.open();
+                serverSocket.socket().bind(new InetSocketAddress(this.addr, this.port));
 
-            int n;
-            while (fileSize > 0 && (n = client.read(buffer)) > 0) {
-                fileSize -= n;
+                int total = 0;
+                System.out.println("FILE SIZE " + fileSize);
+                while (true) {
+                    System.out.println("Waiting for client to connect");
+                    // wait for socket connection
+                    SocketChannel client = serverSocket.accept();
 
-                System.out.println("Read " + n);
+                    int n;
 
-                // flip before writing
-                buffer.flip();
-                fileChannel.write(buffer);
+                    // read from tcp channel
+                    while ((n = client.read(buffer)) > 0) {
 
-                buffer.clear();
+                        total += n;
+                        System.out.println("READ " + n);
+
+                        // flip before writing
+                        buffer.flip();
+                        fileChannel.write(buffer);
+
+                        buffer.clear();
+                    }
+                    client.close();
+                    fileChannel.close();
+                }
+
             }
-            serverSocket.close();
-            client.close();
-//            socket.close();
-            fileChannel.close();
-        }
-        catch (IOException ioe) {
-            ioe.printStackTrace();
-        }
+            catch (IOException ioe) {
+                ioe.printStackTrace();
+            }
+        });
+
     }
 
     @Override

@@ -26,7 +26,7 @@ public class Node implements INode {
     }
 
     @Override
-    public void storeFile(InetAddress initAddr, int initPort, int initId, String fileHash, long fileSize) {}
+    public void storeFile(int initId, String fileHash, long fileSize) {}
 
     @Override
     public int get_id() {

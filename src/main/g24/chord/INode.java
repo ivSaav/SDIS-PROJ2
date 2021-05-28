@@ -38,5 +38,5 @@ public interface INode extends Remote {
      InetAddress get_address() throws RemoteException;
      int get_port() throws RemoteException;
 
-     void storeFile(InetAddress initAddr, int initPort, int initId, String fileHash, long fileSize) throws RemoteException;
+     void storeFile(int initId, String fileHash, long fileSize) throws RemoteException;
 }

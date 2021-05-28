@@ -138,6 +138,7 @@ public class Peer extends Node implements ClientPeerProtocol {
                 // flip before writing
                 buffer.flip();
 
+                // TODO review (possible file corruption)
                 for (SocketChannel socketChannel : successors) {
                     // write buffer to channel
                     while (buffer.hasRemaining())

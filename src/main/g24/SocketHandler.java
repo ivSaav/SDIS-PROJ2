@@ -77,7 +77,7 @@ public class SocketHandler implements Runnable {
                     }
 
                     if (key.isReadable()) {
-                        System.out.println("FILE " + filepath);
+//                        System.out.println("FILE " + filepath);
                         readAndSave(buffer, key);
                     }
                     else if (key.isWritable()) {

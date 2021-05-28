@@ -1,7 +1,7 @@
 package main.g24.message.handlers;
 
 import main.g24.Chunk;
-import main.g24.FileDetails;
+import main.g24.OldFileDetails;
 import main.g24.OldPeer;
 import main.g24.SdisUtils;
 import main.g24.message.ChunkMonitor;
@@ -27,7 +27,7 @@ public class GetchunkHandler implements Handler {
 
     @Override
     public void start() {
-        FileDetails fileDetails = peer.getFileDetails(message.fileId);
+        OldFileDetails fileDetails = peer.getFileDetails(message.fileId);
         if (fileDetails == null)
             return;
 

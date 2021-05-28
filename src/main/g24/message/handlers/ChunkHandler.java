@@ -1,6 +1,6 @@
 package main.g24.message.handlers;
 
-import main.g24.FileDetails;
+import main.g24.OldFileDetails;
 import main.g24.OldPeer;
 import main.g24.message.ChunkMonitor;
 import main.g24.message.Message;
@@ -17,7 +17,7 @@ public class ChunkHandler implements Handler {
 
     @Override
     public void start() {
-        FileDetails fileDetails = peer.getFileDetails(message.fileId);
+        OldFileDetails fileDetails = peer.getFileDetails(message.fileId);
         ChunkMonitor cm;
         if (fileDetails == null || (cm = fileDetails.getMonitor(message.chunkNo)) == null)
             return;

@@ -41,4 +41,6 @@ public interface INode extends Remote {
      String getPeerPath() throws RemoteException;
 
      void storeFile(int initId, String fileHash, long fileSize) throws RemoteException;
+
+     void removeFile(String file) throws RemoteException;
 }

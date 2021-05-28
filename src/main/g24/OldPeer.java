@@ -25,8 +25,8 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
     private long maxSpace; // max space in Bytes
     private long diskUsage; // disk usage in Bytes
     private Map<String, String> filenameHashes; // filename --> fileHash
-    private Map<String, FileDetails> initiatedFiles; // filehash --> FileDetail
-    private Map<String, FileDetails> storedFiles; // filehash --> Chunks
+    private Map<String, OldFileDetails> initiatedFiles; // filehash --> FileDetail
+    private Map<String, OldFileDetails> storedFiles; // filehash --> Chunks
     private Map<Integer, Set<String>> undeletedFiles; // Peer id --> Undeleted Chunks
     private Map<String, Set<Integer>> reclaimedChunks; // fileHash --> chunkNos
 
@@ -112,7 +112,7 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
             int num_chunks = (int) Math.floor( (double) file.length() / (double) Definitions.CHUNK_SIZE) + 1;
 
             // Save filename and its generated hash
-            FileDetails fd = new FileDetails(fileHash, file.length(), repDegree);
+            OldFileDetails fd = new OldFileDetails(fileHash, file.length(), repDegree);
             this.filenameHashes.put(path, fileHash);
             this.initiatedFiles.put(fileHash, fd);
 
@@ -156,7 +156,7 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
         return "success";
     }
 
-    private void backupChunk(FileDetails fd, int chunkNo, byte[] message, int num_read) {
+    private void backupChunk(OldFileDetails fd, int chunkNo, byte[] message, int num_read) {
         int max_putchunk_tries = 5;
         int attempts = 0;
         while (attempts < max_putchunk_tries) {
@@ -177,7 +177,7 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
             String hash = this.filenameHashes.get(file);
 
             // send delete message to other peers
-            FileDetails fileInfo = initiatedFiles.get(hash);
+            OldFileDetails fileInfo = initiatedFiles.get(hash);
 
             addFileAsUndeleted(fileInfo);
 
@@ -200,10 +200,10 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
 
         this.maxSpace = new_capacity * 1000L;
 
-        List<FileDetails> stored = new ArrayList<>(this.storedFiles.values());
+        List<OldFileDetails> stored = new ArrayList<>(this.storedFiles.values());
 
         while (this.diskUsage > this.maxSpace) {
-            FileDetails fileDetails = stored.remove(0);
+            OldFileDetails fileDetails = stored.remove(0);
                 for (Chunk chunk : fileDetails.getChunks()) {
                     fileDetails.removeChunk(chunk.getChunkNo()); // remove chunk from file
                     chunk.removeStorage(this); // remove storage
@@ -230,7 +230,7 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
 
         String hash = this.filenameHashes.get(file);
         // send delete message to other peers
-        FileDetails fileInfo = initiatedFiles.get(hash);
+        OldFileDetails fileInfo = initiatedFiles.get(hash);
 
         String fileName = new File(file).getName();
 
@@ -309,7 +309,7 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
             for (Map.Entry<String, String> entry : this.filenameHashes.entrySet()) {
                 String filename = entry.getKey();
                 String hash = entry.getValue();
-                FileDetails fd = this.initiatedFiles.get(hash);
+                OldFileDetails fd = this.initiatedFiles.get(hash);
                 ret.append(
                         String.format("filename: %s \tid: %s \tdesired replication: %d\n", filename, fd.getHash(), fd.getDesiredReplication())
                 );
@@ -324,7 +324,7 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
 
         if (!this.storedFiles.isEmpty()) {
             ret.append("\n========== STORED ==========\n");
-            for (FileDetails details : this.storedFiles.values())
+            for (OldFileDetails details : this.storedFiles.values())
                 for (Chunk chunk : details.getChunks())
                     ret.append(
                             String.format("chunkID: %s \tsize: %d KB\tdesired replication: %d \tperceived replication: %d\n",
@@ -403,7 +403,7 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
 
     public int getId() { return id; }
 
-    public Map<String, FileDetails> getStoredFiles() { return storedFiles; }
+    public Map<String, OldFileDetails> getStoredFiles() { return storedFiles; }
 
     public void clearChangesFlag() { this.hasChanges = false; }
 
@@ -411,8 +411,8 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
 
     public void setChangesFlag() { this.hasChanges = true; }
 
-    public FileDetails getFileDetails(String fileHash) {
-        FileDetails fileDetails = this.initiatedFiles.get(fileHash);
+    public OldFileDetails getFileDetails(String fileHash) {
+        OldFileDetails fileDetails = this.initiatedFiles.get(fileHash);
         if (fileDetails != null)
             return fileDetails;
         return this.storedFiles.get(fileHash);
@@ -439,7 +439,7 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
      * @param chunkNo - chunk number
      */
     public void resolveInitiatedChunk(String fileHash, int chunkNo) {
-        FileDetails file = this.initiatedFiles.get(fileHash);
+        OldFileDetails file = this.initiatedFiles.get(fileHash);
         if (file == null) // only used on initiator peer
             return;
 
@@ -460,7 +460,7 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
      * @param chunkNo - chunk number
      */
     public void resolveRemovedChunk(String fileHash, int chunkNo) {
-        FileDetails file = this.storedFiles.get(fileHash);
+        OldFileDetails file = this.storedFiles.get(fileHash);
         if (file != null) {
             ChunkMonitor monitor = file.getMonitor(chunkNo);
             if (monitor != null)
@@ -482,7 +482,7 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
      * @return boolean
      */
     public boolean hasStoredChunk(String filehash, int chunkNo) {
-        FileDetails details = this.storedFiles.get(filehash);
+        OldFileDetails details = this.storedFiles.get(filehash);
         return details != null && (details.getChunk(chunkNo) != null);
     }
 
@@ -491,19 +491,19 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
     }
 
     public void addPerceivedReplication(int peerId, String fileHash, int chunkNo) {
-        FileDetails fileDetails = getFileDetails(fileHash);
+        OldFileDetails fileDetails = getFileDetails(fileHash);
         if (fileDetails != null)
             fileDetails.addChunkReplication(chunkNo, peerId);
     }
 
     public void addStoredChunk(Chunk chunk, int desiredReplication) {
-        FileDetails file = this.storedFiles.computeIfAbsent(chunk.getFilehash(), v -> new FileDetails(chunk.getFilehash(),0, desiredReplication));
+        OldFileDetails file = this.storedFiles.computeIfAbsent(chunk.getFilehash(), v -> new OldFileDetails(chunk.getFilehash(),0, desiredReplication));
         this.increaseDiskUsage(chunk.getSize());
         file.addChunk(chunk);
     }
 
     public void removeStoredChunk(String fileHash, int chunkNo) {
-        FileDetails file = this.storedFiles.get(fileHash);
+        OldFileDetails file = this.storedFiles.get(fileHash);
         Chunk c = file.removeChunk(chunkNo);
         this.decreaseDiskUsage(c.getSize());
     }
@@ -511,7 +511,7 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
     public Chunk getFileChunk(String fileHash, int chunkNo) {
 
         //find chunk in stored chunks list
-        FileDetails file = this.storedFiles.get(fileHash);
+        OldFileDetails file = this.storedFiles.get(fileHash);
 
         if (file == null)
             file = this.initiatedFiles.get(fileHash);
@@ -521,7 +521,7 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
 
     public int getFileReplication(String fileHash) {
         //find chunk in stored chunks list
-        FileDetails file = this.storedFiles.get(fileHash);
+        OldFileDetails file = this.storedFiles.get(fileHash);
 
         if (file == null)
             file = this.initiatedFiles.get(fileHash);
@@ -568,7 +568,7 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
             files.remove(hash);
     }
 
-    private void addFileAsUndeleted(FileDetails fileDetails) {
+    private void addFileAsUndeleted(OldFileDetails fileDetails) {
         Set<Integer> peers = fileDetails.getPeersWithChunks();
 
         for (Integer peerId: peers) {
@@ -611,8 +611,8 @@ public class OldPeer implements ClientPeerProtocol, Serializable {
         this.diskUsage = in.readLong();
         this.maxSpace = in.readLong();
         this.filenameHashes = (ConcurrentHashMap<String, String>) in.readObject();
-        this.initiatedFiles = (ConcurrentHashMap<String, FileDetails>) in.readObject();
-        this.storedFiles = (ConcurrentHashMap<String, FileDetails>) in.readObject();
+        this.initiatedFiles = (ConcurrentHashMap<String, OldFileDetails>) in.readObject();
+        this.storedFiles = (ConcurrentHashMap<String, OldFileDetails>) in.readObject();
         this.undeletedFiles = (ConcurrentHashMap<Integer, Set<String>>) in.readObject();
         this.reclaimedChunks = (ConcurrentHashMap<String, Set<Integer>>) in.readObject();
     }

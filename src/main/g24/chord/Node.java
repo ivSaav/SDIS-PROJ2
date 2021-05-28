@@ -27,9 +27,6 @@ public class Node implements INode {
     }
 
     @Override
-    public void storeFile(int initId, String fileHash, long fileSize) {}
-
-    @Override
     public int get_id() {
         return id;
     }
@@ -188,4 +185,10 @@ public class Node implements INode {
     public String getStoragePath(String fileHash) {
         return getPeerPath() + "storage" + File.separator + fileHash;
     }
+
+    @Override
+    public void storeFile(int initId, String fileHash, long fileSize) {}
+
+    @Override
+    public void removeFile(String file) throws RemoteException { }
 }

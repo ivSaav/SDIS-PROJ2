@@ -1,5 +1,6 @@
 package main.g24.chord;
 
+import java.io.File;
 import java.net.InetAddress;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
@@ -8,7 +9,7 @@ import java.util.List;
 
 public class Node implements INode {
 
-    private static final int CHORD_BITS = 8, CHORD_SIZE = (int) Math.pow(2,  CHORD_BITS);
+    protected static final int CHORD_BITS = 8, CHORD_SIZE = (int) Math.pow(2,  CHORD_BITS);
 
     private final int id;
     private int nextFingerCheck = 0;
@@ -16,7 +17,7 @@ public class Node implements INode {
     protected final InetAddress addr;
     protected final int port;
 
-    List<INode> fingers;
+    protected List<INode> fingers;
 
     public Node(int id, InetAddress addr, int port) {
         this.id = id;
@@ -179,17 +180,12 @@ public class Node implements INode {
     protected void on_predecessor_death() {}
 
     @Override
-    public String toString() {
-        try {
-            return "Node {" +
-                    "id=" + id +
-                    ", nextFingerCheck=" + nextFingerCheck +
-                    ", predecessor=" + (predecessor != null ? predecessor.get_id() : null) +
-                    ", successor=" + (successor != null ? successor.get_id() : null) +
-                    '}';
-        } catch (RemoteException e) {
-            e.printStackTrace();
-        }
-        return "";
+    public String getPeerPath() {
+        return "peers" + File.separator + "p" + this.id + File.separator;
+    }
+
+    @Override
+    public String getStoragePath(String fileHash) {
+        return getPeerPath() + "storage" + File.separator + fileHash;
     }
 }

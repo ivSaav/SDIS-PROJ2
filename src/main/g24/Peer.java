@@ -20,7 +20,9 @@ import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -47,7 +49,11 @@ public class Peer extends Node implements ClientPeerProtocol {
     }
 
     private void init(String service_ap) throws RemoteException {
+
+        // TODO delete any storage from this peer at startup
+
         Registry registry = LocateRegistry.getRegistry();
+
         try {
             String[] active = registry.list();
             ClientPeerProtocol stub = (ClientPeerProtocol) UnicastRemoteObject.exportObject(this,0);
@@ -76,7 +82,6 @@ public class Peer extends Node implements ClientPeerProtocol {
         } catch (NotBoundException e) {
             e.printStackTrace();
         }
-        System.out.println("[#] Peer " + this.id + " ready");
 
         // chord stabilization protocol
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -91,6 +96,8 @@ public class Peer extends Node implements ClientPeerProtocol {
 
         ExecutorService tcpService = Executors.newSingleThreadExecutor();
         tcpService.execute(selector);
+
+        System.out.println("[#] Peer " + this.id + " ready");
     }
 
     // ---------------------------------
@@ -106,36 +113,45 @@ public class Peer extends Node implements ClientPeerProtocol {
 
             ByteBuffer buffer = ByteBuffer.allocate(BLOCK_SIZE);
 
-            // connect to successor peer
-            INode succ = this.get_successor();
-
-            if (!succ.alive()) {
-               // TODO fetch next successor
-
-            }
-
             String fileHash = SdisUtils.createFileHash(path, id);
             this.filenameHashes.put(path, fileHash);
             if (fileHash == null)
                 return "failure";
 
-            // init server
-            succ.storeFile(this.id, this.getStoragePath(fileHash) , size);
+            List<SocketChannel> successors = new ArrayList<>();
+            INode nextNode = this;
+            for (int i = 0; i < repDegree && i < CHORD_BITS; i++) {
+                 nextNode = this.find_successor(nextNode.get_id() + 1);
 
-            SocketChannel socket = SocketChannel.open();
-            socket.connect(new InetSocketAddress(succ.get_address(), succ.get_port()));
+                 // TODO verify if nextNode is live
+
+                // notify successor node
+                nextNode.storeFile(this.id, nextNode.getStoragePath(fileHash) , size);
+
+                SocketChannel socket = SocketChannel.open();
+                socket.connect(new InetSocketAddress(nextNode.get_address(), nextNode.get_port()));
+                successors.add(socket);
+            }
 
             int n;
             while ((n = fileChannel.read(buffer)) > 0) {
                 // flip before writing
                 buffer.flip();
-                // write buffer to channel
-                while (buffer.hasRemaining())
-                    socket.write(buffer);
+
+                for (SocketChannel socketChannel : successors) {
+                    // write buffer to channel
+                    while (buffer.hasRemaining())
+                        socketChannel.write(buffer);
+
+                    buffer.rewind();
+                }
+
                 buffer.clear();
             }
 
-            socket.close();
+            for (SocketChannel socketChannel : successors)
+                socketChannel.close();
+
             fileChannel.close();
             return "success";
         }
@@ -171,19 +187,6 @@ public class Peer extends Node implements ClientPeerProtocol {
         return null;
     }
 
-
-    public String getPeerPath() {
-        return "peers" + File.separator + "p" + this.id + File.separator;
-    }
-
-    public String getStoragePath(String fileHash) {
-        return getPeerPath() + "storage" + File.separator + fileHash;
-    }
-
-    public String getRestorePath(String fileName) {
-        File f = new File(fileName);
-        return getPeerPath() + "restored" + File.separator + f.getName();
-    }
 
     public static void main(String[] args) throws IOException {
 

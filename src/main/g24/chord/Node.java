@@ -187,8 +187,14 @@ public class Node implements INode {
     }
 
     @Override
-    public void storeFile(String fileHash, String storagePath, long size) { }
+    public void storeFile(int initID, String fileHash, String storagePath, long size) { }
 
     @Override
     public void removeFile(String file) throws RemoteException { }
+
+    @Override
+    public void handleFileRemoval(int peerID, String fileHash) throws RemoteException { }
+
+    @Override
+    public int copyStoredFile(String fileHash) throws RemoteException { return -1; }
 }

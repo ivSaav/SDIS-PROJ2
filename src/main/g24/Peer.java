@@ -22,7 +22,6 @@ import java.rmi.server.UnicastRemoteObject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.*;
 
 public class Peer extends Node implements ClientPeerProtocol {
@@ -34,7 +33,7 @@ public class Peer extends Node implements ClientPeerProtocol {
 
     private final Map<String, String> filenameHashes; // filename --> fileHash
     private final Map<String, FileDetails> initedFiles;
-    private final Set<String> storedFiles;
+    private final Map<String, FileDetails> storedFiles; // filehash --> filesize
 
     private long maxSpace; // max space in KBytes (1000 bytes)
     private long diskUsage; // disk usage in KBytes (1000 bytes)
@@ -48,15 +47,15 @@ public class Peer extends Node implements ClientPeerProtocol {
         this.selector = new SocketHandler(this);
         this.filenameHashes = new ConcurrentHashMap<>();
         this.initedFiles = new ConcurrentHashMap<>();
-        this.storedFiles = ConcurrentHashMap.newKeySet();
+        this.storedFiles = new ConcurrentHashMap<>();
     }
 
     public void increaseDiskUsage(long size) {
-        this.diskUsage += (int) size / 1000;
+        this.diskUsage += size;
     }
 
     public void decreaseDiskUsage(long size) {
-        this.diskUsage -= (int) size / 1000;
+        this.diskUsage -= size;
     }
 
     private void init(String service_ap) throws RemoteException {
@@ -126,7 +125,7 @@ public class Peer extends Node implements ClientPeerProtocol {
 
             String fileHash = SdisUtils.createFileHash(path, id);
             this.filenameHashes.put(path, fileHash);
-            FileDetails fileDetails = new FileDetails(fileHash, size, repDegree);
+            FileDetails fileDetails = new FileDetails(this.id, fileHash, size, repDegree);
             this.initedFiles.put(fileHash, fileDetails);
             if (fileHash == null)
                 return "failure";
@@ -140,7 +139,7 @@ public class Peer extends Node implements ClientPeerProtocol {
                 fileDetails.addCopy(nextNode.get_id());
 
                 // notify successor node
-                nextNode.storeFile(fileHash, nextNode.getStoragePath(fileHash), size);
+                nextNode.storeFile(this.id, fileHash, nextNode.getStoragePath(fileHash), size);
 
                 SocketChannel socket = SocketChannel.open();
                 socket.connect(new InetSocketAddress(nextNode.get_address(), nextNode.get_port()));
@@ -178,12 +177,13 @@ public class Peer extends Node implements ClientPeerProtocol {
     }
 
     @Override
-    public void storeFile(String fileHash, String storagePath, long size) {
+    public void storeFile(int initID, String fileHash, String storagePath, long size) {
         this.selector.prepareReadOperation(storagePath);
 
-        this.storedFiles.add(fileHash);
-        this.increaseDiskUsage(size);
-        System.out.println(diskUsage);
+        int fileSize = (int) size / 1000;
+        FileDetails details = new FileDetails(initID, fileHash, fileSize);
+        this.storedFiles.put(fileHash, details);
+        this.increaseDiskUsage(fileSize);
     }
 
     @Override
@@ -192,23 +192,96 @@ public class Peer extends Node implements ClientPeerProtocol {
         String filePath = this.getStoragePath(fileHash);
         Path path = Paths.get(filePath);
         try {
-            long size = Files.size(path);
             Files.deleteIfExists(path);
-
-            this.storedFiles.remove(fileHash);
-
             // no stored files (remove subdirectories)
             if (this.storedFiles.isEmpty()) {
                 Files.deleteIfExists(path.getParent());
                 Files.deleteIfExists(path.getParent().getParent());
             }
 
-            this.decreaseDiskUsage(size);
-            System.out.println(diskUsage);
+            this.decreaseDiskUsage(this.storedFiles.get(fileHash).getSize());
+            this.storedFiles.remove(fileHash);
         }
         catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    public void handleFileRemoval(int peerID, String fileHash) throws RemoteException {
+        FileDetails fileDetails = this.initedFiles.get(fileHash);
+        fileDetails.removeCopy(peerID);
+
+        int lastCopy = fileDetails.getLastCopy();
+
+        if (lastCopy < 0) {
+            System.out.println("[!] Couldn't maintain desired replication degree");
+            return;
+        }
+
+        // get first successor of last peer that stored this file
+        INode nextPeer = this.find_successor(lastCopy);
+        int newCopy = nextPeer.copyStoredFile(fileHash);
+
+        if (newCopy > 0) {
+            fileDetails.addCopy(newCopy);
+        }
+        else {
+            System.out.println("[!] Couldn't maintain desired replication degree");
+        }
+    }
+
+    @Override
+    public int copyStoredFile(String fileHash) throws RemoteException {
+        FileDetails fileDetails = this.storedFiles.get(fileHash);
+        // fetch first successor
+        INode firstSucc = this.find_successor(this.id +1);
+
+        System.out.println(this.id);
+
+        if (firstSucc == null)
+            return -1;
+        if (firstSucc.get_id() == fileDetails.getInitID())
+            return -1;
+
+        // start connection
+        firstSucc.storeFile(fileDetails.getInitID(), fileHash, firstSucc.getStoragePath(fileHash), fileDetails.getSize());
+
+        SocketChannel socket = null;
+        try {
+            socket = SocketChannel.open();
+            socket.connect(new InetSocketAddress(firstSucc.get_address(), firstSucc.get_port()));
+        } catch (IOException e) {
+            e.printStackTrace();
+            return -1;
+        }
+
+        try {
+            Path path = Paths.get(this.getStoragePath(fileHash));
+            FileChannel fileChannel = FileChannel.open(path);
+
+            ByteBuffer buffer = ByteBuffer.allocate(BLOCK_SIZE);
+
+            System.out.println("[!] Copying file to: " + firstSucc.get_id());
+
+            int n;
+            while ((n = fileChannel.read(buffer)) > 0) {
+                // flip before writing
+                buffer.flip();
+
+                // write buffer to channel
+                while (buffer.hasRemaining())
+                    socket.write(buffer);
+
+                buffer.clear();
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            return -1;
+        }
+
+        return firstSucc.get_id();
     }
 
     @Override
@@ -231,7 +304,31 @@ public class Peer extends Node implements ClientPeerProtocol {
 
     @Override
     public String reclaim(int new_capacity) throws RemoteException {
-        return null;
+        this.maxSpace = new_capacity;
+
+        ConcurrentLinkedQueue<FileDetails> stored = new ConcurrentLinkedQueue<>(this.storedFiles.values());
+
+        // selecting files
+        while (this.diskUsage > maxSpace) {
+            // extract head
+            FileDetails file = stored.remove();
+
+            INode init = this.find_successor(file.getInitID());
+            if (init.alive()) {
+                // remove file from storage
+                this.removeFile(file.getHash());
+
+                // notify initiator peer
+                init.handleFileRemoval(this.id, file.getHash());
+            }
+            else {
+                // TODO find next live peer
+                // initiator peer wasn't alive (file wasn't removed)
+                stored.add(file);
+            }
+        }
+
+        return "success";
     }
 
     @Override
@@ -259,8 +356,8 @@ public class Peer extends Node implements ClientPeerProtocol {
 
         if (!this.storedFiles.isEmpty()) {
             ret.append("\n========== STORED ==========\n");
-            for (String fileHash : this.storedFiles)
-                ret.append(fileHash).append("\n");
+            for (FileDetails file : this.storedFiles.values())
+                ret.append("init: " + file.getInitID()).append(file.getHash()).append(" - ").append(file.getSize() + " KB").append("\n");
         }
 
         return ret.toString();

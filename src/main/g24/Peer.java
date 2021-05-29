@@ -36,12 +36,16 @@ public class Peer extends Node implements ClientPeerProtocol {
     private final Map<String, FileDetails> initedFiles;
     private final Set<String> storedFiles;
 
+    private long maxSpace; // max space in Bytes
+    private long diskUsage; // disk usage in Bytes
 
 
     // PEER
     public Peer(int id, InetAddress addr, int port) {
         super(id, addr, port);
         this.id = id;
+        this.maxSpace = 2000 * 1024; // 2GB space in the beginning
+        this.diskUsage = 0;
         this.selector = new SocketHandler(this);
         this.filenameHashes = new ConcurrentHashMap<>();
         this.initedFiles = new ConcurrentHashMap<>();
@@ -115,6 +119,8 @@ public class Peer extends Node implements ClientPeerProtocol {
 
             String fileHash = SdisUtils.createFileHash(path, id);
             this.filenameHashes.put(path, fileHash);
+            FileDetails fileDetails = new FileDetails(fileHash, size, repDegree);
+            this.initedFiles.put(fileHash, fileDetails);
             if (fileHash == null)
                 return "failure";
 
@@ -124,9 +130,10 @@ public class Peer extends Node implements ClientPeerProtocol {
                 nextNode = this.find_successor(nextNode.get_id() + 1);
 
                 // TODO verify if nextNode is live
+                fileDetails.addCopy(nextNode.get_id());
 
                 // notify successor node
-                nextNode.storeFile(fileHash, nextNode.getStoragePath(fileHash));
+                nextNode.storeFile(fileHash, nextNode.getStoragePath(fileHash), size);
 
                 SocketChannel socket = SocketChannel.open();
                 socket.connect(new InetSocketAddress(nextNode.get_address(), nextNode.get_port()));
@@ -164,10 +171,12 @@ public class Peer extends Node implements ClientPeerProtocol {
     }
 
     @Override
-    public void storeFile(String fileHash, String storagePath) {
+    public void storeFile(String fileHash, String storagePath, long size) {
         this.selector.prepareReadOperation(storagePath);
 
         this.storedFiles.add(fileHash);
+        this.diskUsage += (int) size / 1024;
+        System.out.println(diskUsage);
     }
 
     @Override
@@ -176,6 +185,7 @@ public class Peer extends Node implements ClientPeerProtocol {
         String filePath = this.getStoragePath(fileHash);
         Path path = Paths.get(filePath);
         try {
+            long size = Files.size(path);
             Files.deleteIfExists(path);
 
             this.storedFiles.remove(fileHash);
@@ -185,6 +195,9 @@ public class Peer extends Node implements ClientPeerProtocol {
                 Files.deleteIfExists(path.getParent());
                 Files.deleteIfExists(path.getParent().getParent());
             }
+
+            this.diskUsage -= (int) size / 1024;
+            System.out.println(diskUsage);
         }
         catch (IOException e) {
             e.printStackTrace();
@@ -221,7 +234,29 @@ public class Peer extends Node implements ClientPeerProtocol {
 
     @Override
     public String state() throws RemoteException {
-        return null;
+        StringBuilder ret = new StringBuilder("\n========== INFO ==========\n");
+
+        ret.append(String.format("peerID: %d \nmax capacity: %d KB\nused: %d KB\n", this.id, this.maxSpace / 1024, this.diskUsage / 1024));
+
+        if (!this.initedFiles.isEmpty()) {
+            ret.append("\n========== INITIATED ===========\n");
+            for (Map.Entry<String, String> entry : this.filenameHashes.entrySet()) {
+                String filename = entry.getKey();
+                String hash = entry.getValue();
+                FileDetails fd = this.initedFiles.get(hash);
+                ret.append(
+                        String.format("filename: %s \tid: %s \tdesired replication: %d \tcopies: %s\n", filename, fd.getHash(), fd.getDesiredReplication(), fd.getFileCopies())
+                );
+            }
+        }
+
+        if (!this.storedFiles.isEmpty()) {
+            ret.append("\n========== STORED ==========\n");
+            for (String fileHash : this.storedFiles)
+                ret.append(fileHash).append("\n");
+        }
+
+        return ret.toString();
     }
 
 

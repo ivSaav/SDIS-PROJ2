@@ -1,7 +1,5 @@
 package main.g24.chord;
 
-import main.g24.FileDetails;
-
 import java.net.InetAddress;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
@@ -45,5 +43,5 @@ public interface INode extends Remote {
 
      void removeFile(String file) throws RemoteException;
 
-     void storeFile(String fileHash, String storagePath) throws RemoteException;
+     void storeFile(String fileHash, String storagePath, long size) throws RemoteException;
 }

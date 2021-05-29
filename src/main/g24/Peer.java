@@ -36,20 +36,27 @@ public class Peer extends Node implements ClientPeerProtocol {
     private final Map<String, FileDetails> initedFiles;
     private final Set<String> storedFiles;
 
-    private long maxSpace; // max space in Bytes
-    private long diskUsage; // disk usage in Bytes
-
+    private long maxSpace; // max space in KBytes (1000 bytes)
+    private long diskUsage; // disk usage in KBytes (1000 bytes)
 
     // PEER
     public Peer(int id, InetAddress addr, int port) {
         super(id, addr, port);
         this.id = id;
-        this.maxSpace = 2000 * 1024; // 2GB space in the beginning
+        this.maxSpace = 1000000; // 1GB space in the beginning
         this.diskUsage = 0;
         this.selector = new SocketHandler(this);
         this.filenameHashes = new ConcurrentHashMap<>();
         this.initedFiles = new ConcurrentHashMap<>();
         this.storedFiles = ConcurrentHashMap.newKeySet();
+    }
+
+    public void increaseDiskUsage(long size) {
+        this.diskUsage += (int) size / 1000;
+    }
+
+    public void decreaseDiskUsage(long size) {
+        this.diskUsage -= (int) size / 1000;
     }
 
     private void init(String service_ap) throws RemoteException {
@@ -175,7 +182,7 @@ public class Peer extends Node implements ClientPeerProtocol {
         this.selector.prepareReadOperation(storagePath);
 
         this.storedFiles.add(fileHash);
-        this.diskUsage += (int) size / 1024;
+        this.increaseDiskUsage(size);
         System.out.println(diskUsage);
     }
 
@@ -196,7 +203,7 @@ public class Peer extends Node implements ClientPeerProtocol {
                 Files.deleteIfExists(path.getParent().getParent());
             }
 
-            this.diskUsage -= (int) size / 1024;
+            this.decreaseDiskUsage(size);
             System.out.println(diskUsage);
         }
         catch (IOException e) {
@@ -236,7 +243,7 @@ public class Peer extends Node implements ClientPeerProtocol {
     public String state() throws RemoteException {
         StringBuilder ret = new StringBuilder("\n========== INFO ==========\n");
 
-        ret.append(String.format("peerID: %d \nmax capacity: %d KB\nused: %d KB\n", this.id, this.maxSpace / 1024, this.diskUsage / 1024));
+        ret.append(String.format("peerID: %d \nmax capacity: %d KB\nused: %d KB\n", this.id, this.maxSpace, this.diskUsage));
 
         if (!this.initedFiles.isEmpty()) {
             ret.append("\n========== INITIATED ===========\n");

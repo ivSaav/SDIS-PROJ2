@@ -1,4 +1,6 @@
-package main.g24;
+package main.g24.socket;
+
+import main.g24.Peer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -13,7 +15,7 @@ import java.util.Set;
 
 import static main.g24.Peer.BLOCK_SIZE;
 
-public class SocketHandler implements Runnable {
+public class ServerSocketHandler implements Runnable {
 
     private final Peer peer;
     private Selector selector;
@@ -21,7 +23,7 @@ public class SocketHandler implements Runnable {
     private int operation;
 
 
-    public SocketHandler(Peer peer) {
+    public ServerSocketHandler(Peer peer) {
         this.peer = peer;
     }
 
@@ -73,16 +75,14 @@ public class SocketHandler implements Runnable {
                     SelectionKey key = iter.next();
 
                     if (key.isAcceptable()) {
+                        System.out.println("Souto");
                         register(selector, serverSocket);
                     }
 
-                    if (key.isReadable()) {
-//                        System.out.println("FILE " + filepath);
-                        readAndSave(buffer, key);
+                    if (key.isWritable() || key.isReadable()) {
+                        ((SocketManager) key.attachment()).onSelect(key);
                     }
-                    else if (key.isWritable()) {
-                        // do stuff
-                    }
+
 
                     iter.remove();
                 }
@@ -97,7 +97,7 @@ public class SocketHandler implements Runnable {
     private void register(Selector selector, ServerSocketChannel socketChannel) throws IOException {
         SocketChannel client = socketChannel.accept();
         client.configureBlocking(false);
-        client.register(selector, this.operation);
+        client.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, new SocketManager(peer));
     }
 
     private void readAndSave(ByteBuffer buffer, SelectionKey key) throws IOException {

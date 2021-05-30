@@ -43,7 +43,7 @@ public interface INode extends Remote {
 
      void removeFile(String file) throws RemoteException;
 
-     void storeFile(int initID, String fileHash, String storagePath, long size) throws RemoteException;
+     void  storeFile(INode origin, String fileHash, long size) throws RemoteException;
 
      void handleFileRemoval(int peerID, String fileHash) throws RemoteException;
 

@@ -1,8 +1,12 @@
 package main.g24.chord;
 
 import java.io.File;
+import java.math.BigInteger;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.rmi.RemoteException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -11,7 +15,7 @@ public class Node implements INode {
 
     protected static final int CHORD_BITS = 8, CHORD_SIZE = (int) Math.pow(2,  CHORD_BITS);
 
-    private final int id;
+    protected final int id;
     private int nextFingerCheck = 0;
     private INode predecessor, successor;
     protected final InetAddress addr;
@@ -19,11 +23,27 @@ public class Node implements INode {
 
     protected List<INode> fingers;
 
-    public Node(int id, InetAddress addr, int port) {
-        this.id = id;
+    public Node(InetAddress addr, int port) {
+        this.id = chordID(addr, port);
         this.addr = addr;
         this.port = port;
         this.fingers = new ArrayList<>(Arrays.asList(new INode[CHORD_BITS+1]));
+    }
+
+    public static int chordID(InetAddress ip, int port) {
+        return chordID(ip.getHostName() + ":" + port);
+    }
+
+    public static int chordID(String s) {
+        final MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA3-256");
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+            return 0;
+        }
+        final byte[] hashbytes = digest.digest(s.getBytes(StandardCharsets.US_ASCII));
+        return new BigInteger(hashbytes).mod(BigInteger.valueOf(CHORD_SIZE)).intValue();
     }
 
     @Override
@@ -187,7 +207,7 @@ public class Node implements INode {
     }
 
     @Override
-    public void storeFile(int initID, String fileHash, String storagePath, long size) { }
+    public void storeFile(INode origin, String fileHash, long size) { }
 
     @Override
     public void removeFile(String file) throws RemoteException { }

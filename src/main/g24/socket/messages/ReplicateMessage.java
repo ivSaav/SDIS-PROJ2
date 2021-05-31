@@ -74,4 +74,9 @@ public class ReplicateMessage implements ISocketMessage, ISocketFileMessage {
     public long get_size() {
         return file_size;
     }
+
+    @Override
+    public int get_rep_degree() {
+        return -1;
+    }
 }

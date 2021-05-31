@@ -6,7 +6,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public class FileDetails implements Serializable {
 
-    private final int initID; // the id fo the initiator peer
     private final String hash;
     private final long size;
     private final int desiredRepDegree;
@@ -14,8 +13,7 @@ public class FileDetails implements Serializable {
     private final List<Integer> copies;
 
     // File details on initiator
-    public FileDetails(int initID, String hash, long size, int desiredRepDegree) {
-        this.initID = initID;
+    public FileDetails(String hash, long size, int desiredRepDegree) {
         this.hash = hash;
         this.size = size;
         this.desiredRepDegree = desiredRepDegree;
@@ -23,8 +21,7 @@ public class FileDetails implements Serializable {
     }
 
     // File Details on store
-    public FileDetails(int initID, String hash, long size) {
-        this.initID = initID;
+    public FileDetails(String hash, long size) {
         this.hash = hash;
         this.size = size;
         this.desiredRepDegree = -1;
@@ -42,8 +39,6 @@ public class FileDetails implements Serializable {
     public int getDesiredReplication() { return desiredRepDegree; }
 
     public int getPerceivedReplication() { return copies.size(); }
-
-    public int getInitID() { return initID; }
 
     public List<Integer> getFileCopies() { return copies; }
 

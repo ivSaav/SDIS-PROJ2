@@ -29,6 +29,8 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                 case BACKUP -> {
                     ISocketFileMessage fileMessage = (ISocketFileMessage) message;
                     if (peer.hasCapacity(fileMessage.get_size())) {
+                        peer.addFileKey(fileMessage.get_filehash(), fileMessage.get_size(), fileMessage.get_rep_degree(), this.peer.get_id());
+                        peer.addStoredFile(fileMessage.get_filehash());
                         yield new ReceiveFileSocket(peer, (ISocketFileMessage) message, true);
                     }
 

@@ -183,6 +183,25 @@ public class Peer extends Node implements ClientPeerProtocol {
         return "failure";
     }
 
+
+    public void addFileKey(String filehash, long size, int rep_degree, int stored_at_id) {
+        int key = chordID(filehash);
+        Map<String, FileDetails> nodes = this.fileKeys.computeIfAbsent(key, k -> new ConcurrentHashMap<>());
+        FileDetails fd = nodes.get(filehash);
+
+        if (fd != null) {
+            System.err.println("FILE SOMEHOW EXISTS");
+        } else {
+            fd = new FileDetails(filehash, size, rep_degree);
+            fd.addCopy(stored_at_id);
+            nodes.put(filehash, fd);
+        }
+    }
+
+    public void addStoredFile(String filehash) {
+        this.stored.add(filehash);
+    }
+
 //    @Override
 //    public void removeFile(String fileHash) throws RemoteException {
 //
@@ -348,30 +367,36 @@ public class Peer extends Node implements ClientPeerProtocol {
 
     @Override
     public String state() throws RemoteException {
-//        StringBuilder ret = new StringBuilder("\n========== INFO ==========\n");
-//
-//        ret.append(String.format("peerID: %d \nmax capacity: %d KB\nused: %d KB\n", this.id, this.maxSpace, this.diskUsage));
-//
-//        if (!this.initedFiles.isEmpty()) {
-//            ret.append("\n========== INITIATED ===========\n");
-//            for (Map.Entry<String, String> entry : this.filenameHashes.entrySet()) {
-//                String filename = entry.getKey();
-//                String hash = entry.getValue();
-//                FileDetails fd = this.initedFiles.get(hash);
-//                ret.append(
-//                        String.format("filename: %s \tid: %s \tdesired replication: %d \tcopies: %s\n", filename, fd.getHash(), fd.getDesiredReplication(), fd.getFileCopies())
-//                );
-//            }
-//        }
-//
-//        if (!this.storedFiles.isEmpty()) {
-//            ret.append("\n========== STORED ==========\n");
-//            for (FileDetails file : this.storedFiles.values())
-//                ret.append("init: " + file.getInitID()).append(file.getHash()).append(" - ").append(file.getSize() + " KB").append("\n");
-//        }
-//
-//        return ret.toString();
-        return "";
+        StringBuilder ret = new StringBuilder("\n========== INFO ==========\n");
+
+        ret.append(String.format("peerID: %d \nmax capacity: %d KB\nused: %d KB\n", this.id, this.maxSpace, this.diskUsage));
+
+        if (!this.fileKeys.isEmpty()) {
+            ret.append("\n========== OWNED KEYS ===========\n");
+            for (Map.Entry<Integer, Map<String, FileDetails>> entry : this.fileKeys.entrySet()) {
+                ret.append(entry.getKey()).append("\n");
+
+                Map<String, FileDetails> files = entry.getValue();
+
+                for (FileDetails fd: files.values()) {
+                    ret.append("\t").append(fd.getHash(), 0, 6).append("\n");
+                    ret.append("\tStored at: ");
+
+                    for (int stored_id: fd.getFileCopies())
+                        ret.append(stored_id).append(" ");
+                    ret.append("\n");
+                }
+                ret.append("\n");
+            }
+        }
+
+        if (!this.stored.isEmpty()) {
+            ret.append("\n========== STORED ==========\n");
+            for (String hash : this.stored)
+                ret.append(hash, 0, 6).append("\n");
+        }
+
+        return ret.toString();
     }
 
 

@@ -3,16 +3,15 @@ package main.g24;
 import main.g24.chord.INode;
 import main.g24.chord.Node;
 import main.g24.socket.ServerSocketHandler;
+import main.g24.socket.handlers.ReceiveFileSocket;
 
 import java.io.IOException;
 import java.net.*;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.rmi.AlreadyBoundException;
 import java.rmi.ConnectException;
 import java.rmi.NotBoundException;
@@ -97,7 +96,7 @@ public class Peer extends Node implements ClientPeerProtocol {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        }, 1, 2, TimeUnit.SECONDS);
+        }, 500, 1000, TimeUnit.MILLISECONDS);
 
         ExecutorService tcpService = Executors.newSingleThreadExecutor();
         tcpService.execute(selector);
@@ -142,41 +141,15 @@ public class Peer extends Node implements ClientPeerProtocol {
         try {
             socket = SocketChannel.open();
             socket.connect(new InetSocketAddress(origin.get_address(), origin.get_port()));
+
+            ReceiveFileSocket rf = new ReceiveFileSocket(this, fileHash);
+            rf.initStreams();
+            selector.register(socket, rf);
+
             byte[] b = "BACKUP fileHash\r\n\r\n".getBytes();
             socket.write(ByteBuffer.wrap(b));
-
-            saveFile(socket, fileHash);
-
         } catch (IOException e) {
             e.printStackTrace();
-        }
-    }
-
-    private void saveFile(SocketChannel client, String fileHash) throws IOException {
-        // open out file
-        Path path = Paths.get(getStoragePath(fileHash));
-        Files.createDirectories(path.getParent());
-        Files.createFile(path);
-        FileChannel fileChannel = FileChannel.open(path, StandardOpenOption.WRITE);
-
-        ByteBuffer buffer = ByteBuffer.allocate(BLOCK_SIZE);
-
-        int n;
-        // read from tcp channel
-        while ((n = client.read(buffer)) > 0) {
-            // flip before writing
-            buffer.flip();
-
-            // write to output file
-            fileChannel.write(buffer);
-
-            buffer.clear();
-        }
-
-        if (n < 0) {
-            System.out.println("Client socket closed.");
-            client.close();
-            fileChannel.close();
         }
     }
 

@@ -14,22 +14,36 @@ import java.nio.file.StandardOpenOption;
 
 public class SocketBackup implements ISocketManager {
 
-    private Peer peer;
-    private boolean valid = true;
+    private final Peer peer;
 
     private FileChannel fileChannel;
+    private ByteBuffer buffer;
 
-    public void init(String filehash) {
+    private final String filehash;
+
+    public SocketBackup(Peer peer, String filehash) {
+        this.peer = peer;
+        this.filehash = filehash;
+    }
+
+    @Override
+    public void init() {
         try {
             Path filePath = Paths.get("shrug.png");
+//            Path filePath = Paths.get("asd.txt");
             fileChannel = FileChannel.open(filePath, StandardOpenOption.READ);
             long size = Files.size(filePath);
 
-            ByteBuffer buffer = ByteBuffer.allocate(Peer.BLOCK_SIZE);
+            buffer = ByteBuffer.allocate(Peer.BLOCK_SIZE);
+            buffer.clear();
         } catch (IOException e) {
             e.printStackTrace();
-            valid = false;
         }
+    }
+
+    @Override
+    public int interestOps() {
+        return SelectionKey.OP_WRITE;
     }
 
     @Override
@@ -40,30 +54,29 @@ public class SocketBackup implements ISocketManager {
     }
 
     private void sendFile(SelectionKey key) {
-        ByteBuffer buffer = ByteBuffer.allocate(Peer.BLOCK_SIZE);
+        SocketChannel channel = (SocketChannel) key.channel();
 
         try {
-            int n;
-            while ((n = fileChannel.read(buffer)) > 0) {
-                // flip before writing
+            int n, wrote_n;
+            do {
+                if ((n = fileChannel.read(buffer)) < 0 && buffer.position() == 0) {
+                    // End connection
+//                    System.out.println("Closed");
+                    fileChannel.close();
+                    key.channel().close();
+                    break;
+                }
+//                System.out.println("Read from file " + n);
                 buffer.flip();
 
-                // write buffer to channel
-                while (buffer.hasRemaining())
-                    ((SocketChannel) key.channel()).write(buffer);
+                wrote_n = channel.write(buffer);
+//                System.out.println("Wrote to socket " + wrote_n);
+                buffer.compact();
+            } while (wrote_n > 0);
 
-                buffer.clear();
-            }
-
-            fileChannel.close();
-            key.channel().close();
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    @Override
-    public void addPeer(Peer peer) {
-        this.peer = peer;
-    }
 }

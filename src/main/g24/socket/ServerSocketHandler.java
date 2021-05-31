@@ -1,6 +1,8 @@
 package main.g24.socket;
 
 import main.g24.Peer;
+import main.g24.socket.handlers.ISocketManager;
+import main.g24.socket.handlers.SocketManager;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -22,6 +24,9 @@ public class ServerSocketHandler implements Runnable {
     private String filepath;
     private int operation;
 
+    public Selector getSelector() {
+        return selector;
+    }
 
     public ServerSocketHandler(Peer peer) {
         this.peer = peer;
@@ -65,6 +70,8 @@ public class ServerSocketHandler implements Runnable {
 
             while (true) {
 
+                System.out.println("[#] Blocking for select");
+
                 selector.select();
 
                 Set<SelectionKey> selectedKeys = selector.selectedKeys();
@@ -75,17 +82,17 @@ public class ServerSocketHandler implements Runnable {
                     SelectionKey key = iter.next();
 
                     if (key.isAcceptable()) {
-                        System.out.println("Souto");
-                        register(selector, serverSocket);
+                        register(serverSocket);
                     }
 
-                    if (key.isWritable() || key.isReadable()) {
-                        ((SocketManager) key.attachment()).onSelect(key);
+                    if (key.attachment() != null && key.attachment() instanceof ISocketManager) {
+                        ((ISocketManager) key.attachment()).onSelect(key);
                     }
-
 
                     iter.remove();
+
                 }
+
             }
 
         }
@@ -94,36 +101,18 @@ public class ServerSocketHandler implements Runnable {
         }
     }
 
-    private void register(Selector selector, ServerSocketChannel socketChannel) throws IOException {
+    private void register(ServerSocketChannel socketChannel) throws IOException {
         SocketChannel client = socketChannel.accept();
         client.configureBlocking(false);
-        client.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, new SocketManager(peer));
+        ISocketManager iSocketManager = new SocketManager(peer);
+        client.register(selector, iSocketManager.interestOps(), iSocketManager);
     }
 
-    private void readAndSave(ByteBuffer buffer, SelectionKey key) throws IOException {
-        SocketChannel client = (SocketChannel) key.channel();
+    public void register(SocketChannel socket, ISocketManager manager) throws IOException {
+        socket.configureBlocking(false);
+        socket.register(selector, manager.interestOps(), manager);
 
-        // open out file
-        Path path = Paths.get(filepath);
-        FileChannel fileChannel = FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.APPEND);
-
-        int n;
-        // read from tcp channel
-        while ((n = client.read(buffer)) > 0) {
-            // flip before writing
-            buffer.flip();
-
-            // write to output file
-            fileChannel.write(buffer);
-
-            buffer.clear();
-        }
-
-        if (n < 0) {
-            System.out.println("Client socket closed.");
-            key.channel().close();
-            fileChannel.close();
-        }
+        selector.wakeup();
     }
 
 }

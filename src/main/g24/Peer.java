@@ -4,6 +4,9 @@ import main.g24.chord.INode;
 import main.g24.chord.Node;
 import main.g24.socket.ServerSocketHandler;
 import main.g24.socket.handlers.ReceiveFileSocket;
+import main.g24.socket.handlers.SendFileSocket;
+import main.g24.socket.messages.SocketMessage;
+import main.g24.socket.messages.Type;
 
 import java.io.IOException;
 import java.net.*;
@@ -124,7 +127,21 @@ public class Peer extends Node implements ClientPeerProtocol {
             if (fileHash == null)
                 return "failure";
 
-            this.get_successor().storeFile(this, fileHash, size);
+            SocketMessage message = SocketMessage.from(this, Type.BACKUP, fileHash, repDegree);
+            if (message == null)
+                return "failure";
+
+            int file_key = chordID(fileHash);
+            INode key_owner = find_successor(file_key);
+
+            SocketChannel socket = SocketChannel.open();
+            socket.connect(key_owner.get_socket_address());
+
+            message.send(socket);
+
+            SendFileSocket sf = new SendFileSocket(filePath);
+            sf.init();
+            selector.register(socket, sf);
 
             return "success";
         }
@@ -135,26 +152,8 @@ public class Peer extends Node implements ClientPeerProtocol {
         return "failure";
     }
 
-    @Override
-    public void storeFile(INode origin, String fileHash, long size) {
-        SocketChannel socket = null;
-        try {
-            socket = SocketChannel.open();
-            socket.connect(new InetSocketAddress(origin.get_address(), origin.get_port()));
-
-            ReceiveFileSocket rf = new ReceiveFileSocket(this, fileHash);
-            rf.initStreams();
-            selector.register(socket, rf);
-
-            byte[] b = "BACKUP fileHash\r\n\r\n".getBytes();
-            socket.write(ByteBuffer.wrap(b));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    @Override
-    public void removeFile(String fileHash) throws RemoteException {
+//    @Override
+//    public void removeFile(String fileHash) throws RemoteException {
 //
 //        String filePath = this.getStoragePath(fileHash);
 //        Path path = Paths.get(filePath);
@@ -172,10 +171,10 @@ public class Peer extends Node implements ClientPeerProtocol {
 //        catch (IOException e) {
 //            e.printStackTrace();
 //        }
-    }
+//    }
 
-    @Override
-    public void handleFileRemoval(int peerID, String fileHash) throws RemoteException {
+//    @Override
+//    public void handleFileRemoval(int peerID, String fileHash) throws RemoteException {
 //        FileDetails fileDetails = this.initedFiles.get(fileHash);
 //        fileDetails.removeCopy(peerID);
 //
@@ -196,10 +195,10 @@ public class Peer extends Node implements ClientPeerProtocol {
 //        else {
 //            System.out.println("[!] Couldn't maintain desired replication degree");
 //        }
-    }
+//    }
 
-    @Override
-    public int copyStoredFile(String fileHash) throws RemoteException {
+//    @Override
+//    public int copyStoredFile(String fileHash) throws RemoteException {
 //        FileDetails fileDetails = this.storedFiles.get(fileHash);
 //        // fetch first successor
 //        INode firstSucc = this.find_successor(this.id +1);
@@ -249,8 +248,8 @@ public class Peer extends Node implements ClientPeerProtocol {
 //        }
 //
 //        return firstSucc.get_id();
-        return 0;
-    }
+//        return 0;
+//    }
 
     @Override
     public String delete(String file) throws RemoteException {

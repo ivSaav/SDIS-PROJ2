@@ -2,6 +2,7 @@ package main.g24.socket.handlers;
 
 import main.g24.Peer;
 import main.g24.socket.handlers.ISocketManager;
+import main.g24.socket.messages.SocketMessage;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -15,25 +16,14 @@ import java.nio.file.StandardOpenOption;
 
 public class ReceiveFileSocket implements ISocketManager {
 
-    private Peer peer;
-    private String fileHash;
+    private final SocketMessage message;
+    private final Peer peer;
     private FileChannel fileChannel;
     private ByteBuffer buffer;
 
-    public ReceiveFileSocket(Peer peer, String fileHash) {
+    public ReceiveFileSocket(Peer peer, SocketMessage message) {
         this.peer = peer;
-        this.fileHash = fileHash;
-    }
-
-    public void initStreams() throws IOException {
-        // open out file
-        Path path = Paths.get(peer.getStoragePath(fileHash));
-        Files.createDirectories(path.getParent());
-        Files.deleteIfExists(path);
-        Files.createFile(path);
-        fileChannel = FileChannel.open(path, StandardOpenOption.WRITE);
-
-        buffer = ByteBuffer.allocate(Peer.BLOCK_SIZE);
+        this.message = message;
     }
 
     @Override
@@ -44,7 +34,16 @@ public class ReceiveFileSocket implements ISocketManager {
     }
 
     @Override
-    public void init() {}
+    public void init() throws IOException {
+        // open out file
+        Path path = Paths.get(peer.getStoragePath(message.filehash));
+        Files.createDirectories(path.getParent());
+        Files.deleteIfExists(path);
+        Files.createFile(path);
+        fileChannel = FileChannel.open(path, StandardOpenOption.WRITE);
+
+        buffer = ByteBuffer.allocate(Peer.BLOCK_SIZE);
+    }
 
     @Override
     public int interestOps() {

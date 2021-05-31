@@ -1,8 +1,10 @@
 package main.g24.socket.handlers;
 
 import main.g24.Peer;
+import main.g24.socket.messages.SocketMessage;
 
 import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
@@ -61,26 +63,37 @@ public class SocketManager implements ISocketManager {
         }
     }
 
+    @SuppressWarnings("MagicConstant")
     private boolean parseRequest(SelectionKey key, String request) {
-        String[] params = request.split(" ");
 
-        if (params.length < 1)
+        String[] params = request.split(MESSAGE_TERMINATOR);
+
+        try {
+            SocketMessage message = SocketMessage.from(params[0]);
+            if (message == null)
+                return false;
+
+            System.out.println("[-] " + message);
+
+            ISocketManager iSocketManager = switch (message.type) {
+                case BACKUP -> new ReceiveFileSocket(peer, message);
+                case RESTORE -> null;
+                case REPLICATE -> null;
+                case DELETE -> null;
+                default -> null;
+            };
+
+            if (iSocketManager == null)
+                return false;
+
+            iSocketManager.init();
+            key.interestOps(iSocketManager.interestOps());
+            key.attach(iSocketManager);
+
+            return true;
+        } catch (IOException e) {
+            e.printStackTrace();
             return false;
-
-        ISocketManager iSocketManager = switch (params[0]) {
-            case "BACKUP" -> new SocketBackup(peer, params[1]);
-            case "RESTORE" -> null;
-            case "REPLICATE" -> null;
-            default -> null;
-        };
-
-        if (iSocketManager == null)
-            return false;
-
-        iSocketManager.init();
-        key.interestOps(iSocketManager.interestOps());
-        key.attach(iSocketManager);
-
-        return true;
+        }
     }
 }

@@ -70,7 +70,7 @@ public class ServerSocketHandler implements Runnable {
 
             while (true) {
 
-                System.out.println("[#] Blocking for select");
+//                System.out.println("[#] Blocking for select");
 
                 selector.select();
 

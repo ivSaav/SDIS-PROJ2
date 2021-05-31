@@ -1,6 +1,7 @@
 package main.g24.chord;
 
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 
@@ -34,18 +35,10 @@ public interface INode extends Remote {
     /* =============================
                 Methods
        =============================
-     */
-     InetAddress get_address() throws RemoteException;
-     int get_port() throws RemoteException;
-     String getStoragePath(String fileHash) throws RemoteException;
-     String getPeerPath() throws RemoteException;
-
-
-     void removeFile(String file) throws RemoteException;
-
-     void  storeFile(INode origin, String fileHash, long size) throws RemoteException;
-
-     void handleFileRemoval(int peerID, String fileHash) throws RemoteException;
-
-     int copyStoredFile(String fileHash) throws RemoteException;
+    */
+    InetAddress get_address() throws RemoteException;
+    int get_port() throws RemoteException;
+    InetSocketAddress get_socket_address() throws RemoteException;
+    String getStoragePath(String fileHash) throws RemoteException;
+    String getPeerPath() throws RemoteException;
 }

@@ -7,35 +7,25 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 
-public class SocketBackup implements ISocketManager {
-
-    private final Peer peer;
+public class SendFileSocket implements ISocketManager {
 
     private FileChannel fileChannel;
     private ByteBuffer buffer;
 
-    private final String filehash;
+    private final Path filepath;
 
-    public SocketBackup(Peer peer, String filehash) {
-        this.peer = peer;
-        this.filehash = filehash;
+    public SendFileSocket(Path filepath) {
+        this.filepath = filepath;
     }
 
     @Override
     public void init() {
         try {
-            Path filePath = Paths.get("shrug.png");
-//            Path filePath = Paths.get("asd.txt");
-            fileChannel = FileChannel.open(filePath, StandardOpenOption.READ);
-            long size = Files.size(filePath);
-
+            fileChannel = FileChannel.open(filepath, StandardOpenOption.READ);
             buffer = ByteBuffer.allocate(Peer.BLOCK_SIZE);
-            buffer.clear();
         } catch (IOException e) {
             e.printStackTrace();
         }

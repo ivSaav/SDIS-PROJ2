@@ -3,6 +3,7 @@ package main.g24.chord;
 import java.io.File;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.rmi.RemoteException;
 import java.security.MessageDigest;
@@ -63,6 +64,11 @@ public class Node implements INode {
 
     @Override
     public InetAddress get_address() throws RemoteException { return this.addr; }
+
+    @Override
+    public InetSocketAddress get_socket_address() throws RemoteException {
+        return new InetSocketAddress(this.addr, this.port);
+    }
 
     @Override
     public int get_port() throws RemoteException { return this.port; }
@@ -206,15 +212,4 @@ public class Node implements INode {
         return getPeerPath() + "storage" + File.separator + fileHash;
     }
 
-    @Override
-    public void storeFile(INode origin, String fileHash, long size) { }
-
-    @Override
-    public void removeFile(String file) throws RemoteException { }
-
-    @Override
-    public void handleFileRemoval(int peerID, String fileHash) throws RemoteException { }
-
-    @Override
-    public int copyStoredFile(String fileHash) throws RemoteException { return -1; }
 }

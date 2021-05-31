@@ -4,5 +4,6 @@ public enum Type {
     BACKUP,
     DELETE,
     RESTORE,
-    REPLICATE
+    REPLICATE,
+    ACK,
 }

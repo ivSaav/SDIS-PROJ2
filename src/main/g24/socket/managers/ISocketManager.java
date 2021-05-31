@@ -1,4 +1,4 @@
-package main.g24.socket.handlers;
+package main.g24.socket.managers;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;

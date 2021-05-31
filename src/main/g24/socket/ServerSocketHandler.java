@@ -1,8 +1,8 @@
 package main.g24.socket;
 
 import main.g24.Peer;
-import main.g24.socket.handlers.ISocketManager;
-import main.g24.socket.handlers.SocketManager;
+import main.g24.socket.managers.ISocketManager;
+import main.g24.socket.managers.SocketManager;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -11,7 +11,6 @@ import java.nio.channels.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -101,6 +100,7 @@ public class ServerSocketHandler implements Runnable {
         }
     }
 
+    @SuppressWarnings("MagicConstant")
     private void register(ServerSocketChannel socketChannel) throws IOException {
         SocketChannel client = socketChannel.accept();
         client.configureBlocking(false);
@@ -108,6 +108,7 @@ public class ServerSocketHandler implements Runnable {
         client.register(selector, iSocketManager.interestOps(), iSocketManager);
     }
 
+    @SuppressWarnings("MagicConstant")
     public void register(SocketChannel socket, ISocketManager manager) throws IOException {
         socket.configureBlocking(false);
         socket.register(selector, manager.interestOps(), manager);

@@ -1,8 +1,7 @@
-package main.g24.socket.handlers;
+package main.g24.socket.managers;
 
 import main.g24.Peer;
-import main.g24.socket.handlers.ISocketManager;
-import main.g24.socket.messages.SocketMessage;
+import main.g24.socket.messages.ISocketFileMessage;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -16,12 +15,12 @@ import java.nio.file.StandardOpenOption;
 
 public class ReceiveFileSocket implements ISocketManager {
 
-    private final SocketMessage message;
+    private final ISocketFileMessage message;
     private final Peer peer;
     private FileChannel fileChannel;
     private ByteBuffer buffer;
 
-    public ReceiveFileSocket(Peer peer, SocketMessage message) {
+    public ReceiveFileSocket(Peer peer, ISocketFileMessage message) {
         this.peer = peer;
         this.message = message;
     }
@@ -36,7 +35,7 @@ public class ReceiveFileSocket implements ISocketManager {
     @Override
     public void init() throws IOException {
         // open out file
-        Path path = Paths.get(peer.getStoragePath(message.filehash));
+        Path path = Paths.get(peer.getStoragePath(message.get_filehash()));
         Files.createDirectories(path.getParent());
         Files.deleteIfExists(path);
         Files.createFile(path);

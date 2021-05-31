@@ -3,10 +3,8 @@ package main.g24;
 import main.g24.chord.INode;
 import main.g24.chord.Node;
 import main.g24.socket.ServerSocketHandler;
-import main.g24.socket.handlers.ReceiveFileSocket;
-import main.g24.socket.handlers.SendFileSocket;
-import main.g24.socket.messages.SocketMessage;
-import main.g24.socket.messages.Type;
+import main.g24.socket.managers.SendFileSocket;
+import main.g24.socket.messages.BackupMessage;
 
 import java.io.IOException;
 import java.net.*;
@@ -55,6 +53,10 @@ public class Peer extends Node implements ClientPeerProtocol {
 
     public void decreaseDiskUsage(long size) {
         this.diskUsage -= size;
+    }
+
+    public boolean hasCapacity(long size) {
+        return (this.maxSpace - this.diskUsage) >= size;
     }
 
     private void init(String service_ap) throws RemoteException {
@@ -115,7 +117,6 @@ public class Peer extends Node implements ClientPeerProtocol {
 
         try {
             Path filePath = Paths.get(path);
-//            FileChannel fileChannel = FileChannel.open(filePath, StandardOpenOption.READ);
             long size = Files.size(filePath);
 
             ByteBuffer buffer = ByteBuffer.allocate(BLOCK_SIZE);
@@ -127,7 +128,7 @@ public class Peer extends Node implements ClientPeerProtocol {
             if (fileHash == null)
                 return "failure";
 
-            SocketMessage message = SocketMessage.from(this, Type.BACKUP, fileHash, repDegree);
+            BackupMessage message = BackupMessage.from(this, fileHash, repDegree, size);
             if (message == null)
                 return "failure";
 

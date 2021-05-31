@@ -1,4 +1,4 @@
-package main.g24.socket.handlers;
+package main.g24.socket.managers;
 
 import main.g24.Peer;
 

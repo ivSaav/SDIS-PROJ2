@@ -1,10 +1,12 @@
-package main.g24.socket.handlers;
+package main.g24.socket.managers;
 
 import main.g24.Peer;
-import main.g24.socket.messages.SocketMessage;
+import main.g24.socket.managers.dispatchers.DefaultSocketManagerDispatcher;
+import main.g24.socket.managers.dispatchers.ISocketManagerDispatcher;
+import main.g24.socket.messages.ISocketMessage;
+import main.g24.socket.messages.SocketMessageFactory;
 
 import java.io.IOException;
-import java.io.ObjectInputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
@@ -16,11 +18,16 @@ public class SocketManager implements ISocketManager {
 
     public static final String MESSAGE_TERMINATOR = "\r\n\r\n";
 
-    private final Peer peer;
     private final ByteBuffer buffer = ByteBuffer.allocate(BLOCK_SIZE);
 
+    private final ISocketManagerDispatcher dispatcher;
+
     public SocketManager(Peer peer) {
-        this.peer = peer;
+        this.dispatcher = new DefaultSocketManagerDispatcher(peer);
+    }
+
+    public SocketManager(ISocketManagerDispatcher dispatcher) {
+        this.dispatcher = dispatcher;
     }
 
     public void onSelect(SelectionKey key) {
@@ -69,20 +76,13 @@ public class SocketManager implements ISocketManager {
         String[] params = request.split(MESSAGE_TERMINATOR);
 
         try {
-            SocketMessage message = SocketMessage.from(params[0]);
+            ISocketMessage message = SocketMessageFactory.from(params[0]);
             if (message == null)
                 return false;
 
             System.out.println("[-] " + message);
 
-            ISocketManager iSocketManager = switch (message.type) {
-                case BACKUP -> new ReceiveFileSocket(peer, message);
-                case RESTORE -> null;
-                case REPLICATE -> null;
-                case DELETE -> null;
-                default -> null;
-            };
-
+            ISocketManager iSocketManager = this.dispatcher.dispatch(message, key);
             if (iSocketManager == null)
                 return false;
 

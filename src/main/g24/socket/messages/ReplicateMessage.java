@@ -42,9 +42,9 @@ public class ReplicateMessage implements ISocketMessage, ISocketFileMessage {
         return Type.REPLICATE;
     }
 
-    public void send(SocketChannel socketChannel) throws IOException {
-        String header = String.format("REPLICATE %d %s %d %s %d\r\n\r\n", sender_id, sender_ip, sender_port, filehash, file_size);
-        send(socketChannel, header);
+    @Override
+    public String gen_header() {
+        return String.format("REPLICATE %d %s %d %s %d\r\n\r\n", sender_id, sender_ip, sender_port, filehash, file_size);
     }
 
     @Override

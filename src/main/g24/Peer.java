@@ -2,8 +2,12 @@ package main.g24;
 
 import main.g24.chord.INode;
 import main.g24.chord.Node;
+import main.g24.monitors.GeneralMonitor;
 import main.g24.socket.ServerSocketHandler;
+import main.g24.socket.managers.ISocketManager;
 import main.g24.socket.managers.SendFileSocket;
+import main.g24.socket.managers.SocketManager;
+import main.g24.socket.managers.dispatchers.AckNackDispatcher;
 import main.g24.socket.messages.BackupMessage;
 
 import java.io.IOException;
@@ -32,6 +36,8 @@ public class Peer extends Node implements ClientPeerProtocol {
     private final Set<String> stored;
     private final Map<Integer, Map<String, FileDetails>> fileKeys;
 
+    private Map<String, GeneralMonitor> monitors;
+
     private long maxSpace; // max space in KBytes (1000 bytes)
     private long diskUsage; // disk usage in KBytes (1000 bytes)
 
@@ -45,6 +51,8 @@ public class Peer extends Node implements ClientPeerProtocol {
 
         this.stored = ConcurrentHashMap.newKeySet();
         this.fileKeys = new ConcurrentHashMap<>();
+
+        this.monitors = new ConcurrentHashMap<>();
     }
 
     public void increaseDiskUsage(long size) {
@@ -140,11 +148,33 @@ public class Peer extends Node implements ClientPeerProtocol {
 
             message.send(socket);
 
-            SendFileSocket sf = new SendFileSocket(filePath);
+            ISocketManager resolutionSocketManager = new SocketManager(new AckNackDispatcher(
+                    () -> {
+                        GeneralMonitor monitor = this.getMonitor(fileHash);
+                        if (monitor != null)
+                            monitor.resolve("success");
+                        return null;
+                    },
+                    () -> {
+                        GeneralMonitor monitor = this.getMonitor(fileHash);
+                        if (monitor != null)
+                            monitor.resolve("failure");
+                        return null;
+                    }
+            ));
+
+            SendFileSocket sf = new SendFileSocket(filePath, resolutionSocketManager);
             sf.init();
             selector.register(socket, sf);
 
-            return "success";
+            // Wait for success or failure :)
+            GeneralMonitor monitor = new GeneralMonitor();
+            monitors.put(fileHash, monitor);
+
+            if (monitor.await_resolution(5000))
+                return monitor.get_message();
+
+            return "timeout";
         }
         catch (IOException ioe) {
             ioe.printStackTrace();
@@ -342,6 +372,11 @@ public class Peer extends Node implements ClientPeerProtocol {
 //
 //        return ret.toString();
         return "";
+    }
+
+
+    public GeneralMonitor getMonitor(String key) {
+        return monitors.get(key);
     }
 
 

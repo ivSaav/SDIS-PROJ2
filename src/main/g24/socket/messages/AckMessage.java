@@ -1,10 +1,7 @@
 package main.g24.socket.messages;
 
-import main.g24.chord.INode;
-
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
-import java.rmi.RemoteException;
 
 public class AckMessage implements ISocketMessage {
     // <PROTOCOL> <SENDER_ID> <STATUS>
@@ -16,28 +13,8 @@ public class AckMessage implements ISocketMessage {
         this.status = status;
     }
 
-    public static AckMessage from(INode node, int status) {
-        try {
-            return new AckMessage(
-                    node.get_id(),
-                    status
-            );
-        } catch (RemoteException e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    public static AckMessage from(INode node, boolean status) {
-        try {
-            return new AckMessage(
-                    node.get_id(),
-                    status ? 1 : 0
-            );
-        } catch (RemoteException e) {
-            e.printStackTrace();
-            return null;
-        }
+    public AckMessage(int sender_id, boolean status) {
+        this(sender_id, status ? 1 : 0);
     }
 
     public boolean get_status() {
@@ -49,14 +26,14 @@ public class AckMessage implements ISocketMessage {
         return Type.ACK;
     }
 
-    public void send(SocketChannel socketChannel) throws IOException {
-        String header = String.format("ACK %d %d\r\n\r\n", sender_id, status);
-        send(socketChannel, header);
+    @Override
+    public String gen_header() {
+        return String.format("ACK %d %d\r\n\r\n", sender_id, status);
     }
 
     @Override
     public String toString() {
-        return "ACK" + sender_id + " " + (status != 0 ? "SUCC" : "FAIL");
+        return "ACK " + sender_id + " " + (status != 0 ? "SUCC" : "FAIL");
     }
 
     public static ISocketMessage from(String[] args) {

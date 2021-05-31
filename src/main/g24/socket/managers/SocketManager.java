@@ -53,6 +53,7 @@ public class SocketManager implements ISocketManager {
             while ((n = client.read(buffer)) > 0) {
 
                 String s = new String(buffer.array(), StandardCharsets.US_ASCII);
+
                 if (s.contains(MESSAGE_TERMINATOR)) {
                     if (!parseRequest(key, s)) {
                         // Unkown request, closing connection
@@ -80,7 +81,7 @@ public class SocketManager implements ISocketManager {
             if (message == null)
                 return false;
 
-            System.out.println("[-] " + message);
+            System.out.println("[<] " + message);
 
             ISocketManager iSocketManager = this.dispatcher.dispatch(message, key);
             if (iSocketManager == null)

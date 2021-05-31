@@ -45,9 +45,9 @@ public class BackupMessage implements ISocketMessage, ISocketFileMessage {
         return Type.BACKUP;
     }
 
-    public void send(SocketChannel socketChannel) throws IOException {
-        String header = String.format("BACKUP %d %s %d %s %d %d\r\n\r\n", sender_id, sender_ip, sender_port, filehash, rep_degree, file_size);
-        send(socketChannel, header);
+    @Override
+    public String gen_header() {
+        return String.format("BACKUP %d %s %d %s %d %d\r\n\r\n", sender_id, sender_ip, sender_port, filehash, rep_degree, file_size);
     }
 
     @Override

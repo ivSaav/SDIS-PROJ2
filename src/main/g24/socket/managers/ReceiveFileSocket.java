@@ -1,6 +1,7 @@
 package main.g24.socket.managers;
 
 import main.g24.Peer;
+import main.g24.socket.messages.AckMessage;
 import main.g24.socket.messages.ISocketFileMessage;
 
 import java.io.IOException;
@@ -20,9 +21,30 @@ public class ReceiveFileSocket implements ISocketManager {
     private FileChannel fileChannel;
     private ByteBuffer buffer;
 
-    public ReceiveFileSocket(Peer peer, ISocketFileMessage message) {
+    private final ISocketManager afterTransferSocketManager;
+    private final boolean echoStatus;
+
+    private long file_remaining;
+
+    private ReceiveFileSocket(Peer peer, ISocketFileMessage message, ISocketManager afterTransferSocketManager, boolean echoStatus) {
         this.peer = peer;
         this.message = message;
+        this.afterTransferSocketManager = afterTransferSocketManager;
+        this.echoStatus = echoStatus;
+
+        this.file_remaining = message.get_size();
+    }
+
+    public ReceiveFileSocket(Peer peer, ISocketFileMessage message, ISocketManager afterTransferSocketManager) {
+        this(peer, message, afterTransferSocketManager, false);
+    }
+
+    public ReceiveFileSocket(Peer peer, ISocketFileMessage message, boolean echoStatus) {
+        this(peer, message, null, echoStatus);
+    }
+
+    public ReceiveFileSocket(Peer peer, ISocketFileMessage message) {
+        this(peer, message, null, false);
     }
 
     @Override
@@ -49,6 +71,7 @@ public class ReceiveFileSocket implements ISocketManager {
         return SelectionKey.OP_READ;
     }
 
+    @SuppressWarnings("MagicConstant")
     private void temp(SelectionKey key) {
         SocketChannel client = (SocketChannel) key.channel();
 
@@ -58,6 +81,7 @@ public class ReceiveFileSocket implements ISocketManager {
             while ((n = client.read(buffer)) > 0) {
 
 //                System.out.println("Read from socket " + n);
+                file_remaining -= n;
 
                 // flip before writing
                 buffer.flip();
@@ -69,13 +93,33 @@ public class ReceiveFileSocket implements ISocketManager {
 
 //            System.out.println("Out of cycle: Read " + n);
 
+            if (file_remaining <= 0) {
+
+                if (echoStatus) {
+                    echoStatus(client, true);
+                }
+
+                if (afterTransferSocketManager == null) {
+                    client.close();
+                } else {
+                    afterTransferSocketManager.init();
+                    key.interestOps(afterTransferSocketManager.interestOps());
+                    key.attach(afterTransferSocketManager);
+                }
+
+                return;
+            }
+
             if (n < 0) {
-//                System.out.println("Closed");
-                client.close();
                 fileChannel.close();
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private void echoStatus(SocketChannel client, boolean status) throws IOException {
+        AckMessage ack = new AckMessage(peer.get_id(), status);
+        ack.send(client);
     }
 }

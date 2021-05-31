@@ -17,8 +17,15 @@ public class SendFileSocket implements ISocketManager {
 
     private final Path filepath;
 
-    public SendFileSocket(Path filepath) {
+    private final ISocketManager afterTransferSocketManager;
+
+    public SendFileSocket(Path filepath, ISocketManager afterTransferSocketManager) {
         this.filepath = filepath;
+        this.afterTransferSocketManager = afterTransferSocketManager;
+    }
+
+    public SendFileSocket(Path filepath) {
+        this(filepath, null);
     }
 
     @Override
@@ -43,6 +50,7 @@ public class SendFileSocket implements ISocketManager {
         }
     }
 
+    @SuppressWarnings("MagicConstant")
     private void sendFile(SelectionKey key) {
         SocketChannel channel = (SocketChannel) key.channel();
 
@@ -51,9 +59,17 @@ public class SendFileSocket implements ISocketManager {
             do {
                 if ((n = fileChannel.read(buffer)) < 0 && buffer.position() == 0) {
                     // End connection
-//                    System.out.println("Closed");
                     fileChannel.close();
-                    key.channel().close();
+
+                    if (afterTransferSocketManager == null)
+                        key.channel().close();
+                    else {
+                        afterTransferSocketManager.init();
+                        key.interestOps(afterTransferSocketManager.interestOps());
+                        key.attach(afterTransferSocketManager);
+
+                        key.selector().wakeup();
+                    }
                     break;
                 }
 //                System.out.println("Read from file " + n);

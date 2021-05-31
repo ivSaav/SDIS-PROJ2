@@ -9,10 +9,12 @@ public interface ISocketMessage {
     String toString();
     Type get_type();
 
-    void send(SocketChannel socketChannel) throws IOException;
+    String gen_header();
 
-    default void send(SocketChannel socketChannel, String header) throws IOException {
-        ByteBuffer buffer = ByteBuffer.wrap(header.getBytes(StandardCharsets.UTF_8));
+    default void send(SocketChannel socketChannel) throws IOException {
+        System.out.println("\t[>] " + this);
+
+        ByteBuffer buffer = ByteBuffer.wrap((this.gen_header() + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
         socketChannel.write(buffer);
     }
 }

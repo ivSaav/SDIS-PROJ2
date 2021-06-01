@@ -9,6 +9,7 @@ import main.g24.socket.managers.SendFileSocket;
 import main.g24.socket.managers.SocketManager;
 import main.g24.socket.managers.dispatchers.AckNackDispatcher;
 import main.g24.socket.messages.BackupMessage;
+import main.g24.socket.messages.DeleteMessage;
 
 import java.io.IOException;
 import java.net.*;
@@ -36,7 +37,7 @@ public class Peer extends Node implements ClientPeerProtocol {
     private final Set<String> stored;
     private final Map<Integer, Map<String, FileDetails>> fileKeys;
 
-    private Map<String, GeneralMonitor> monitors;
+    private final Map<String, GeneralMonitor> monitors;
 
     private long maxSpace; // max space in KBytes (1000 bytes)
     private long diskUsage; // disk usage in KBytes (1000 bytes)
@@ -202,26 +203,95 @@ public class Peer extends Node implements ClientPeerProtocol {
         this.stored.add(filehash);
     }
 
-//    @Override
-//    public void removeFile(String fileHash) throws RemoteException {
-//
-//        String filePath = this.getStoragePath(fileHash);
-//        Path path = Paths.get(filePath);
-//        try {
-//            Files.deleteIfExists(path);
-//            // no stored files (remove subdirectories)
-//            if (this.storedFiles.isEmpty()) {
-//                Files.deleteIfExists(path.getParent());
-//                Files.deleteIfExists(path.getParent().getParent());
-//            }
-//
-//            this.decreaseDiskUsage(this.storedFiles.get(fileHash).getSize());
-//            this.storedFiles.remove(fileHash);
-//        }
-//        catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//    }
+    @Override
+    public String delete(String file) throws RemoteException {
+
+        String fileHash = SdisUtils.createFileHash(file, id);
+        int file_key = chordID(fileHash);
+
+        INode respNode = this.find_successor(file_key);
+        if (!respNode.alive())
+            return "failure";
+
+        DeleteMessage message = DeleteMessage.from(this, fileHash);
+        if (message == null)
+            return "failure";
+
+        try {
+            // send delete message to the responsible peer
+            SocketChannel socket = SocketChannel.open();
+            socket.connect(respNode.get_socket_address());
+            message.send(socket);
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+            return "failure";
+        }
+
+        return "success";
+    }
+
+    public boolean deleteFileCopies(String fileHash) {
+
+        int file_key = chordID(fileHash);
+        // this isn't responsible for the requested file
+        if (this.fileKeys.containsKey(file_key))
+            return false;
+
+        // remove file from storage ( may or may not hold this file)
+        if (this.stored.contains(fileHash))
+            if (!this.deleteFile(fileHash))
+                return false;
+
+        try {
+            FileDetails fileDetails = this.fileKeys.get(file_key).get(fileHash);
+            // send DELETE messages to copy holders
+            for (int i : fileDetails.getFileCopies()) {
+                INode succCopy = this.find_successor(i);
+
+                if (!succCopy.alive())
+                    continue;
+
+                DeleteMessage message = DeleteMessage.from(this, fileHash);
+                if (message == null)
+                    return false;
+
+                SocketChannel socket = SocketChannel.open();
+                socket.connect(succCopy.get_socket_address());
+                message.send(socket);
+            }
+
+            return true;
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+
+    }
+
+    public boolean deleteFile(String fileHash) {
+        Path path = Paths.get(this.getStoragePath(fileHash));
+
+        try {
+            long size = Files.size(path);
+            boolean deleted = Files.deleteIfExists(path);
+            this.decreaseDiskUsage(size);
+            this.stored.remove(fileHash);
+
+            // no stored files (remove subdirectories)
+            if (this.stored.isEmpty()) {
+                Files.deleteIfExists(path.getParent());
+                Files.deleteIfExists(path.getParent().getParent());
+            }
+
+            return deleted;
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
 
 //    @Override
 //    public void handleFileRemoval(int peerID, String fileHash) throws RemoteException {
@@ -301,23 +371,7 @@ public class Peer extends Node implements ClientPeerProtocol {
 //        return 0;
 //    }
 
-    @Override
-    public String delete(String file) throws RemoteException {
 
-//        if (this.filenameHashes.containsKey(file)) {
-//            String fileHash = this.filenameHashes.get(file);
-//
-//            FileDetails details = this.initedFiles.get(fileHash);
-//
-//            for (int id : details.getFileCopies()) {
-//                INode succ = this.find_successor(id);
-//                succ.removeFile(fileHash);
-//            }
-//
-//            return "success";
-//        }
-        return "failure";
-    }
 
     @Override
     public String reclaim(int new_capacity) throws RemoteException {

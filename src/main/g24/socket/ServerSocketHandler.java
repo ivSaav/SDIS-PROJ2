@@ -91,9 +91,7 @@ public class ServerSocketHandler implements Runnable {
                     iter.remove();
 
                 }
-
             }
-
         }
         catch (IOException ioe) {
             ioe.printStackTrace();

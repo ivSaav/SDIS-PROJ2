@@ -1,16 +1,13 @@
 package main.g24.socket.managers.dispatchers;
 
 import main.g24.Peer;
-import main.g24.monitors.GeneralMonitor;
 import main.g24.socket.managers.ISocketManager;
 import main.g24.socket.managers.ReceiveFileSocket;
-import main.g24.socket.managers.SocketManager;
 import main.g24.socket.messages.AckMessage;
 import main.g24.socket.messages.ISocketFileMessage;
 import main.g24.socket.messages.ISocketMessage;
 
 import java.io.IOException;
-import java.net.Socket;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 
@@ -47,7 +44,14 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                     yield reply.get_status() ? new ReceiveFileSocket(peer, fileMessage) : null;
                 }
 
-                case DELETE -> null;
+                case DELETE -> {
+//                    ISocketFileMessage deleteMessage = (ISocketFileMessage) message;
+//                    boolean status = peer.deleteFileCopies(deleteMessage.get_filehash());
+//                    AckMessage reply = new AckMessage(peer.get_id(), status);
+//                    reply.send((SocketChannel) key.channel());
+//                    yield null;
+                    yield null;
+                }
 
                 default -> null;
             };

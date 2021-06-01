@@ -1,8 +1,5 @@
 package main.g24.socket.messages;
 
-import java.io.IOException;
-import java.nio.channels.SocketChannel;
-
 public class AckMessage implements ISocketMessage {
     // <PROTOCOL> <SENDER_ID> <STATUS>
 

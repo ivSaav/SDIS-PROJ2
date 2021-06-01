@@ -25,14 +25,14 @@ public class Node implements INode {
     protected List<INode> fingers;
 
     public Node(InetAddress addr, int port) {
-        this.id = chordID(addr, port);
+        this.id = chordID(addr.getHostName(), port);
         this.addr = addr;
         this.port = port;
         this.fingers = new ArrayList<>(Arrays.asList(new INode[CHORD_BITS+1]));
     }
 
-    public static int chordID(InetAddress ip, int port) {
-        return chordID(ip.getHostName() + ":" + port);
+    public static int chordID(String ip, int port) {
+        return chordID(ip + ":" + port);
     }
 
     public static int chordID(String s) {

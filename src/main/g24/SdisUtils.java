@@ -1,8 +1,6 @@
 package main.g24;
 
 import java.io.IOException;
-import java.math.BigInteger;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,7 +8,6 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.UUID;
 
 public class SdisUtils {
 
@@ -19,7 +16,7 @@ public class SdisUtils {
             Path file = Paths.get(path);
             BasicFileAttributes attribs = Files.readAttributes(file, BasicFileAttributes.class); // get file metadata
 
-            String originalString = path + attribs.lastModifiedTime() + attribs.creationTime() + initiatorPeerId;
+            String originalString = path + initiatorPeerId;
 
             final MessageDigest digest = MessageDigest.getInstance("SHA3-256");
             final byte[] hashbytes = digest.digest(originalString.getBytes(StandardCharsets.US_ASCII));

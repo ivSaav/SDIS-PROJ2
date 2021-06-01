@@ -4,7 +4,7 @@ import main.g24.chord.INode;
 
 import java.rmi.RemoteException;
 
-public class DeleteMessage implements ISocketMessage, ISocketFileMessage {
+public class DeleteMessage implements ISocketFileMessage {
     // <PROTOCOL> <SENDER_ID> <SENDER_IP> <SENDER_PORT> <FILEHASH>
 
     public final int sender_id, sender_port;
@@ -34,7 +34,7 @@ public class DeleteMessage implements ISocketMessage, ISocketFileMessage {
 
     @Override
     public Type get_type() {
-        return Type.BACKUP;
+        return Type.DELETE;
     }
 
     @Override

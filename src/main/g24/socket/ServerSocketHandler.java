@@ -6,22 +6,15 @@ import main.g24.socket.managers.SocketManager;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.channels.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.Set;
 
-import static main.g24.Peer.BLOCK_SIZE;
 
 public class ServerSocketHandler implements Runnable {
 
     private final Peer peer;
     private Selector selector;
-    private String filepath;
-    private int operation;
 
     public Selector getSelector() {
         return selector;
@@ -31,34 +24,11 @@ public class ServerSocketHandler implements Runnable {
         this.peer = peer;
     }
 
-    public void prepareWriteOperation(String filename) {
-        this.filepath = filename;
-        this.operation = SelectionKey.OP_WRITE;
-    }
-
-    public void prepareReadOperation(String filePath) {
-        Path path = Paths.get(filePath);
-        try {
-            // create output file
-            Files.createDirectories(path.getParent());
-            Files.deleteIfExists(path);
-            Files.createFile(path);
-        }
-        catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        this.filepath = filePath;
-        this.operation = SelectionKey.OP_READ;
-    }
-
 
     // source: https://www.baeldung.com/java-nio-selector
     @Override
     public void run() {
         try {
-
-            ByteBuffer buffer = ByteBuffer.allocate(BLOCK_SIZE);
 
             selector = Selector.open();
             ServerSocketChannel serverSocket = ServerSocketChannel.open();

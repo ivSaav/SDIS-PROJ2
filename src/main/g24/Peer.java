@@ -28,6 +28,8 @@ import java.rmi.server.UnicastRemoteObject;
 import java.util.*;
 import java.util.concurrent.*;
 
+import javax.swing.plaf.synth.SynthSplitPaneUI;
+
 public class Peer extends Node implements ClientPeerProtocol {
 
     public static final int BLOCK_SIZE = 1024 * 128;
@@ -128,12 +130,8 @@ public class Peer extends Node implements ClientPeerProtocol {
             Path filePath = Paths.get(path);
             long size = Files.size(filePath);
 
-            ByteBuffer buffer = ByteBuffer.allocate(BLOCK_SIZE);
-
             String fileHash = SdisUtils.createFileHash(path, id);
-//            this.filenameHashes.put(path, fileHash);
-//            FileDetails fileDetails = new FileDetails(this.id, fileHash, size, repDegree);
-//            this.initedFiles.put(fileHash, fileDetails);
+
             if (fileHash == null)
                 return "failure";
 
@@ -180,7 +178,6 @@ public class Peer extends Node implements ClientPeerProtocol {
         catch (IOException ioe) {
             ioe.printStackTrace();
         }
-
         return "failure";
     }
 
@@ -207,9 +204,9 @@ public class Peer extends Node implements ClientPeerProtocol {
     public String delete(String file) throws RemoteException {
 
         String fileHash = SdisUtils.createFileHash(file, id);
-        int file_key = chordID(fileHash);
+        int fileKey = chordID(fileHash);
 
-        INode respNode = this.find_successor(file_key);
+        INode respNode = this.find_successor(fileKey);
         if (!respNode.alive())
             return "failure";
 
@@ -222,51 +219,77 @@ public class Peer extends Node implements ClientPeerProtocol {
             SocketChannel socket = SocketChannel.open();
             socket.connect(respNode.get_socket_address());
             message.send(socket);
+        
+            // Wait for success or failure :)
+            GeneralMonitor monitor = new GeneralMonitor();
+            monitors.put(fileHash, monitor);
+
+            if (monitor.await_resolution(5000))
+                return monitor.get_message();
+
+            return "timeout";
         }
         catch (IOException e) {
             e.printStackTrace();
             return "failure";
         }
 
-        return "success";
+    }
+
+    public boolean isResponsible(int fileKey) {
+        return this.fileKeys.containsKey(fileKey);
     }
 
     public boolean deleteFileCopies(String fileHash) {
 
-        int file_key = chordID(fileHash);
-        // this isn't responsible for the requested file
-        if (this.fileKeys.containsKey(file_key))
-            return false;
+        int fileKey = chordID(fileHash);
 
         // remove file from storage ( may or may not hold this file)
-        if (this.stored.contains(fileHash))
-            if (!this.deleteFile(fileHash))
+        if (this.stored.contains(fileHash)) {
+            boolean deleted = this.deleteFile(fileHash);
+            if (!deleted && !isResponsible(fileKey)) {
+                System.out.println("Couldn't delete stored file");
                 return false;
-
-        try {
-            FileDetails fileDetails = this.fileKeys.get(file_key).get(fileHash);
-            // send DELETE messages to copy holders
-            for (int i : fileDetails.getFileCopies()) {
-                INode succCopy = this.find_successor(i);
-
-                if (!succCopy.alive())
-                    continue;
-
-                DeleteMessage message = DeleteMessage.from(this, fileHash);
-                if (message == null)
-                    return false;
-
-                SocketChannel socket = SocketChannel.open();
-                socket.connect(succCopy.get_socket_address());
-                message.send(socket);
             }
+            else if (deleted && !isResponsible(fileKey)) {
+                // only stored the file (exit here)
+                return true;
+            }
+        }
 
-            return true;
-
-        } catch (IOException e) {
-            e.printStackTrace();
+        // this isn't responsible for the requested file
+        if (!this.fileKeys.containsKey(fileKey)) {
+            System.out.println("Not responsible for this key");
             return false;
         }
+
+        // TODO: remove copies from successors
+
+        return true;
+        // try {
+        //     FileDetails fileDetails = this.fileKeys.get(fileKey).get(fileHash);
+        //     // send DELETE messages to copy holders
+        //     for (int i : fileDetails.getFileCopies()) {
+        //         INode succCopy = this.find_successor(i);
+
+        //         if (!succCopy.alive())
+        //             continue;
+
+        //         DeleteMessage message = DeleteMessage.from(this, fileHash);
+        //         if (message == null)
+        //             return false;
+
+        //         SocketChannel socket = SocketChannel.open();
+        //         socket.connect(succCopy.get_socket_address());
+        //         message.send(socket);
+        //     }
+
+        //     return true;
+
+        // } catch (IOException e) {
+        //     e.printStackTrace();
+        //     return false;
+        // }
 
     }
 
@@ -275,7 +298,7 @@ public class Peer extends Node implements ClientPeerProtocol {
 
         try {
             long size = Files.size(path);
-            boolean deleted = Files.deleteIfExists(path);
+            Files.delete(path);
             this.decreaseDiskUsage(size);
             this.stored.remove(fileHash);
 
@@ -285,7 +308,8 @@ public class Peer extends Node implements ClientPeerProtocol {
                 Files.deleteIfExists(path.getParent().getParent());
             }
 
-            return deleted;
+            return true;
+
         }
         catch (IOException e) {
             e.printStackTrace();

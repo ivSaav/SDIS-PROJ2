@@ -14,6 +14,7 @@ public abstract class SocketMessageFactory {
            case REPLICATE -> ReplicateMessage.from(args);
            case DELKEY -> DeleteKeyMessage.from(args);
            case DELCOPY -> DeleteCopyMessage.from(args);
+           case REMOVED -> RemovedMessage.from(args);
            default -> null;
        };
     }

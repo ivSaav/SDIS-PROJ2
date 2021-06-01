@@ -12,6 +12,7 @@ import main.g24.socket.messages.BackupMessage;
 import main.g24.socket.messages.DeleteCopyMessage;
 import main.g24.socket.messages.DeleteKeyMessage;
 import main.g24.socket.messages.DeleteMessage;
+import main.g24.socket.messages.RemovedMessage;
 
 import java.io.IOException;
 import java.net.*;
@@ -195,6 +196,20 @@ public class Peer extends Node implements ClientPeerProtocol {
         return nodes == null ? null : nodes.remove(filehash);
     }
 
+    public FileDetails removeTrackedCopy(String fileHash, int copyPeerID) {
+        int fileKey = chordID(fileHash);
+        Map<String, FileDetails> nodes = this.fileKeys.get(fileKey);
+        if (nodes != null) {
+            FileDetails fileDetails = nodes.get(fileHash);
+
+            if (fileDetails != null) {
+                fileDetails.removeCopy(copyPeerID);
+                return fileDetails;
+            }
+        }
+        return null;
+    }
+
     public void addStoredFile(String filehash) {
         this.stored.add(filehash);
     }
@@ -283,7 +298,7 @@ public class Peer extends Node implements ClientPeerProtocol {
             for (int i : fileDetails.getFileCopies()) {
                 INode succCopy = this.find_successor(i);
 
-                if (!succCopy.alive())
+                if (!isAlive(succCopy))
                     continue;
 
                 DeleteCopyMessage message = DeleteCopyMessage.from(this, fileHash);
@@ -411,32 +426,55 @@ public class Peer extends Node implements ClientPeerProtocol {
 
     @Override
     public String reclaim(int new_capacity) throws RemoteException {
-//        this.maxSpace = new_capacity;
-//
-//        ConcurrentLinkedQueue<FileDetails> stored = new ConcurrentLinkedQueue<>(this.storedFiles.values());
-//
-//        // selecting files
-//        while (this.diskUsage > maxSpace) {
-//            // extract head
-//            FileDetails file = stored.remove();
-//
-//            INode init = this.find_successor(file.getInitID());
-//            if (init.alive()) {
-//                // remove file from storage
-//                this.removeFile(file.getHash());
-//
-//                // notify initiator peer
-//                init.handleFileRemoval(this.id, file.getHash());
-//            }
-//            else {
-//                // TODO find next live peer
-//                // initiator peer wasn't alive (file wasn't removed)
-//                stored.add(file);
-//            }
-//        }
-//
-//        return "success";
-        return "failure";
+
+        // TODO might want to do this in a thread
+        this.maxSpace = new_capacity;
+        ConcurrentLinkedQueue<String> storedFiles = new ConcurrentLinkedQueue<>(this.stored);
+
+        // selecting files
+        while (this.diskUsage > maxSpace && !storedFiles.isEmpty()) {
+            // extract head
+            String fileHash = storedFiles.remove();
+
+            int fileKey = chordID(fileHash);
+
+            INode respNode = this.find_successor(fileKey);
+            
+            if (isAlive(respNode)) {
+
+                RemovedMessage message = RemovedMessage.from(this, fileHash);
+                if (message == null)
+                    continue;
+
+                ISocketManager resolutionSocketManager = new SocketManager(AckNackDispatcher.resolveFilehash(this, fileHash));
+
+                try {
+                    // connect to node responsible for this file
+                    SocketChannel socket = SocketChannel.open();
+                    socket.connect(respNode.get_socket_address());
+                    message.send(socket);
+
+                    resolutionSocketManager.init();
+                    selector.register(socket, resolutionSocketManager);
+
+                    // Wait for success or failure :)
+                    GeneralMonitor monitor = new GeneralMonitor();
+                    monitors.put(fileHash, monitor);
+
+                    // only delete file if responsible peer acknowledges
+                    if (monitor.await_resolution(1000)) {
+                        this.deleteFile(fileHash);
+                    }
+                    else // couldn't reach responsible peer (ignore)
+                        continue;
+                }
+                catch (IOException e) {
+                    e.printStackTrace();
+                    continue;
+                }
+            }
+        }
+       return this.diskUsage > this.maxSpace ? "failure" : "success";
     }
 
     @Override
@@ -492,6 +530,15 @@ public class Peer extends Node implements ClientPeerProtocol {
 
     public GeneralMonitor getMonitor(String key) {
         return monitors.get(key);
+    }
+
+    public static boolean isAlive(INode succ) {
+        try {
+            succ.alive();
+        } catch (RemoteException e) {
+            return false;
+        }
+        return true;
     }
 
 

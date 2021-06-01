@@ -6,10 +6,13 @@ import main.g24.socket.managers.ReceiveFileSocket;
 import main.g24.socket.messages.AckMessage;
 import main.g24.socket.messages.ISocketFileMessage;
 import main.g24.socket.messages.ISocketMessage;
+import main.g24.socket.messages.RemovedMessage;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+
+import javax.print.attribute.standard.MediaSize.ISO;
 
 public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher {
 
@@ -56,6 +59,17 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                     ISocketFileMessage deleteMessage = (ISocketFileMessage) message;
                     peer.deleteFile(deleteMessage.get_filehash());
                     yield null; // delete copy messages don't require Acknowledgements
+                }
+
+                case REMOVED -> {
+                    RemovedMessage removedMessage = (RemovedMessage) message;
+
+                    // remove tracked copy from reclaimed peer
+                    peer.removeTrackedCopy(removedMessage.get_filehash(), removedMessage.sender_id);
+                    // send acknowledgement to reclaimed peer
+                    new AckMessage(peer.get_id(), true).send((SocketChannel) key.channel());
+                    // TODO: Replicate if needed
+                    yield null;
                 }
 
                 default -> null;

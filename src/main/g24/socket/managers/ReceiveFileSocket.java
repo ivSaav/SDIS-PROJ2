@@ -1,6 +1,7 @@
 package main.g24.socket.managers;
 
 import main.g24.Peer;
+import main.g24.monitors.GeneralMonitor;
 import main.g24.socket.messages.AckMessage;
 import main.g24.socket.messages.ISocketFileMessage;
 
@@ -18,46 +19,58 @@ public class ReceiveFileSocket implements ISocketManager {
 
     private final ISocketFileMessage message;
     private final Peer peer;
+    private final Path destination;
     private FileChannel fileChannel;
     private ByteBuffer buffer;
 
     private final ISocketManager afterTransferSocketManager;
+    private final GeneralMonitor resolve;
     private final boolean echoStatus;
 
     private long file_remaining;
 
-    private ReceiveFileSocket(Peer peer, ISocketFileMessage message, ISocketManager afterTransferSocketManager, boolean echoStatus) {
+    private ReceiveFileSocket(Peer peer, ISocketFileMessage message, Path destination, ISocketManager afterTransferSocketManager, boolean echoStatus, GeneralMonitor resolve) {
         this.peer = peer;
         this.message = message;
+        this.destination = destination;
         this.afterTransferSocketManager = afterTransferSocketManager;
         this.echoStatus = echoStatus;
+        this.resolve = resolve;
 
         this.file_remaining = message.get_size();
     }
 
     public ReceiveFileSocket(Peer peer, ISocketFileMessage message, ISocketManager afterTransferSocketManager) {
-        this(peer, message, afterTransferSocketManager, false);
+        this(peer, message, null, afterTransferSocketManager, false, null);
     }
 
     public ReceiveFileSocket(Peer peer, ISocketFileMessage message, boolean echoStatus) {
-        this(peer, message, null, echoStatus);
+        this(peer, message, null, null, echoStatus, null);
+    }
+
+    public ReceiveFileSocket(Peer peer, ISocketFileMessage message, Path destination, GeneralMonitor resolve) {
+        this(peer, message, destination, null, false, resolve);
+    }
+
+    public ReceiveFileSocket(Peer peer, ISocketFileMessage message, Path destination) {
+        this(peer, message, destination, null, false, null);
     }
 
     public ReceiveFileSocket(Peer peer, ISocketFileMessage message) {
-        this(peer, message, null, false);
+        this(peer, message, null, null, false, null);
     }
 
     @Override
     public void onSelect(SelectionKey key) {
         if (key.isReadable()) {
-            temp(key);
+            readFile(key);
         }
     }
 
     @Override
     public void init() throws IOException {
         // open out file
-        Path path = Paths.get(peer.getStoragePath(message.get_filehash()));
+        Path path = destination != null ? destination : Paths.get(peer.getStoragePath(message.get_filehash()));
         Files.createDirectories(path.getParent());
         Files.deleteIfExists(path);
         Files.createFile(path);
@@ -72,7 +85,7 @@ public class ReceiveFileSocket implements ISocketManager {
     }
 
     @SuppressWarnings("MagicConstant")
-    private void temp(SelectionKey key) {
+    private void readFile(SelectionKey key) {
         SocketChannel client = (SocketChannel) key.channel();
 
         int n;
@@ -99,6 +112,9 @@ public class ReceiveFileSocket implements ISocketManager {
                     echoStatus(client, true);
                 }
 
+                if (resolve != null)
+                    resolve.resolve("success");
+
                 if (afterTransferSocketManager == null) {
                     client.close();
                 } else {
@@ -112,6 +128,8 @@ public class ReceiveFileSocket implements ISocketManager {
 
             if (n < 0) {
                 fileChannel.close();
+                if (resolve != null)
+                    resolve.resolve("failure");
             }
         } catch (IOException e) {
             e.printStackTrace();

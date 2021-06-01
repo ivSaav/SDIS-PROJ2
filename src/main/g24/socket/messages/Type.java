@@ -5,6 +5,7 @@ public enum Type {
     DELKEY,
     DELCOPY,
     GETFILE,
+    FILEHERE,
     REPLICATE,
     ACK,
     REMOVED,

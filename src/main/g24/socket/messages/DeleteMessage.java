@@ -15,34 +15,10 @@ public abstract class DeleteMessage implements ISocketFileMessage {
     }
 
     @Override
-    public Type get_type() {
-        return null;
-    }
-
-    @Override
-    public String gen_header() {
-        return "INVALID DELETE MESSAGE";
-    }
-
-    @Override
-    public String toString() {
-        return "INVALID DELETE MESSAGE";
-    }
-
-    @Override
     public String get_filehash() {
         return filehash;
     }
 
     @Override
-    public long get_size() {
-        return -1;
-    }
-
-    @Override
-    public int get_rep_degree() {
-        return -1;
-    }
-
-
+    public long get_size()  { return -1; }
 }

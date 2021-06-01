@@ -1,6 +1,6 @@
 #! /usr/bin/bash
 
-# Script for running the deletion protocol
+# Script for running the backup protocol
 # To be run at the root of the compiled tree
 # No jar files used
 # Assumes that TestApp is the main class
@@ -17,4 +17,4 @@ else
   pap=$1
 fi
 
-java -cp src/build main.g24.TestApp "${pap}" DELETE asd.txt
+java -cp src/build main.g24.TestApp "${pap}" BACKUP shrug.png 2

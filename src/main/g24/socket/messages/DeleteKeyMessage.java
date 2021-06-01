@@ -32,7 +32,7 @@ public class DeleteKeyMessage extends DeleteMessage {
 
     @Override
     public String gen_header() {
-        return String.format("DELKEY %d %s %d %s\r\n\r\n", sender_id, sender_ip, sender_port, filehash);
+        return String.format("DELKEY %d %s %d %s", sender_id, sender_ip, sender_port, filehash);
     }
 
     @Override

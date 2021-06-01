@@ -3,16 +3,17 @@ package main.g24.socket.managers.dispatchers;
 import main.g24.Peer;
 import main.g24.socket.managers.ISocketManager;
 import main.g24.socket.managers.ReceiveFileSocket;
-import main.g24.socket.messages.AckMessage;
-import main.g24.socket.messages.ISocketFileMessage;
-import main.g24.socket.messages.ISocketMessage;
-import main.g24.socket.messages.RemovedMessage;
+import main.g24.socket.managers.SendFileSocket;
+import main.g24.socket.messages.*;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Collection;
 
-import javax.print.attribute.standard.MediaSize.ISO;
 
 public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher {
 
@@ -27,7 +28,7 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
         try {
             return switch (message.get_type()) {
                 case BACKUP -> {
-                    ISocketFileMessage fileMessage = (ISocketFileMessage) message;
+                    BackupMessage fileMessage = (BackupMessage) message;
                     if (peer.hasCapacity(fileMessage.get_size())) {
                         peer.addFileToKey(fileMessage.get_filehash(), fileMessage.get_size(), fileMessage.get_rep_degree(), this.peer.get_id());
                         peer.addStoredFile(fileMessage.get_filehash());
@@ -38,10 +39,8 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                     yield null;
                 }
 
-                case GETFILE -> null;
-
                 case REPLICATE -> {
-                    ISocketFileMessage fileMessage = (ISocketFileMessage) message;
+                    ReplicateMessage fileMessage = (ReplicateMessage) message;
                     AckMessage reply = new AckMessage(peer.get_id(), peer.hasCapacity(fileMessage.get_size()));
                     reply.send((SocketChannel) key.channel());
                     yield reply.get_status() ? new ReceiveFileSocket(peer, fileMessage) : null;
@@ -70,6 +69,25 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                     new AckMessage(peer.get_id(), true).send((SocketChannel) key.channel());
                     // TODO: Replicate if needed
                     yield null;
+                }
+
+                case GETFILE -> {
+                    GetFileMessage fileMessage = (GetFileMessage) message;
+                    ISocketMessage reply;
+                    ISocketManager futureManager = null;
+                    Collection<Integer> peers_storing;
+                    if (peer.storesFile(fileMessage.filehash)) {
+                        Path path = Paths.get(peer.getStoragePath(fileMessage.filehash));
+                        reply = FileHereMessage.from(peer, peer.get_id(), fileMessage.filehash, Files.size(path));
+                        futureManager = new SendFileSocket(path);
+                    } else if ((peers_storing = peer.findWhoStores(fileMessage.filehash)) == null || peers_storing.isEmpty()) {
+                        reply = new AckMessage(peer.get_id(), false);
+                    } else {
+                        int chosen_peer = peers_storing.stream().findAny().get();
+                        reply = FileHereMessage.from(peer, chosen_peer, fileMessage.filehash, -1);
+                    }
+                    reply.send((SocketChannel) key.channel());
+                    yield futureManager;
                 }
 
                 default -> null;

@@ -44,7 +44,7 @@ public class ReplicateMessage implements ISocketMessage, ISocketFileMessage {
 
     @Override
     public String gen_header() {
-        return String.format("REPLICATE %d %s %d %s %d\r\n\r\n", sender_id, sender_ip, sender_port, filehash, file_size);
+        return String.format("REPLICATE %d %s %d %s %d", sender_id, sender_ip, sender_port, filehash, file_size);
     }
 
     @Override
@@ -61,7 +61,7 @@ public class ReplicateMessage implements ISocketMessage, ISocketFileMessage {
                 args[2], // sender ip
                 Integer.parseInt(args[3]), // sender port
                 args[4], // filehash
-                Integer.parseInt(args[5]) // file_size
+                Long.parseLong(args[5]) // file_size
         );
     }
 
@@ -75,8 +75,4 @@ public class ReplicateMessage implements ISocketMessage, ISocketFileMessage {
         return file_size;
     }
 
-    @Override
-    public int get_rep_degree() {
-        return -1;
-    }
 }

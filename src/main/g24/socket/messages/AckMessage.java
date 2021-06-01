@@ -25,7 +25,7 @@ public class AckMessage implements ISocketMessage {
 
     @Override
     public String gen_header() {
-        return String.format("ACK %d %d\r\n\r\n", sender_id, status);
+        return String.format("ACK %d %d", sender_id, status);
     }
 
     @Override

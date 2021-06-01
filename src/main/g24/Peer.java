@@ -8,15 +8,17 @@ import main.g24.socket.managers.ISocketManager;
 import main.g24.socket.managers.SendFileSocket;
 import main.g24.socket.managers.SocketManager;
 import main.g24.socket.managers.dispatchers.AckNackDispatcher;
+import main.g24.socket.managers.dispatchers.RestoreDispatcher;
 import main.g24.socket.messages.BackupMessage;
 import main.g24.socket.messages.DeleteCopyMessage;
 import main.g24.socket.messages.DeleteKeyMessage;
 import main.g24.socket.messages.DeleteMessage;
 import main.g24.socket.messages.RemovedMessage;
+import main.g24.socket.messages.GetFileMessage;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.*;
-import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -260,8 +262,26 @@ public class Peer extends Node implements ClientPeerProtocol {
 
     }
 
+    public boolean isResponsible(String filehash) {
+        return isResponsible(chordID(filehash));
+    }
+
     public boolean isResponsible(int fileKey) {
         return this.fileKeys.containsKey(fileKey);
+    }
+
+    public boolean storesFile(String filehash) {
+        return this.stored.contains(filehash);
+    }
+
+    public Collection<Integer> findWhoStores(String filehash) {
+        int key = chordID(filehash);
+        Map<String, FileDetails> files = fileKeys.get(key);
+        if (files == null)
+            return null;
+
+        FileDetails fd = files.get(filehash);
+        return fd == null ? null : fd.getFileCopies();
     }
 
     /**
@@ -322,6 +342,7 @@ public class Peer extends Node implements ClientPeerProtocol {
      * @return
      */
     public boolean deleteFile(String fileHash) {
+
         Path path = Paths.get(this.getStoragePath(fileHash));
 
         try {
@@ -367,61 +388,6 @@ public class Peer extends Node implements ClientPeerProtocol {
 //            System.out.println("[!] Couldn't maintain desired replication degree");
 //        }
 //    }
-
-//    @Override
-//    public int copyStoredFile(String fileHash) throws RemoteException {
-//        FileDetails fileDetails = this.storedFiles.get(fileHash);
-//        // fetch first successor
-//        INode firstSucc = this.find_successor(this.id +1);
-//
-//        System.out.println(this.id);
-//
-//        if (firstSucc == null)
-//            return -1;
-//        if (firstSucc.get_id() == fileDetails.getInitID())
-//            return -1;
-//
-//        // start connection
-//        firstSucc.storeFile(fileDetails.getInitID(), fileHash, firstSucc.getStoragePath(fileHash), fileDetails.getSize());
-//
-//        SocketChannel socket = null;
-//        try {
-//            socket = SocketChannel.open();
-//            socket.connect(new InetSocketAddress(firstSucc.get_address(), firstSucc.get_port()));
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//            return -1;
-//        }
-//
-//        try {
-//            Path path = Paths.get(this.getStoragePath(fileHash));
-//            FileChannel fileChannel = FileChannel.open(path);
-//
-//            ByteBuffer buffer = ByteBuffer.allocate(BLOCK_SIZE);
-//
-//            System.out.println("[!] Copying file to: " + firstSucc.get_id());
-//
-//            int n;
-//            while ((n = fileChannel.read(buffer)) > 0) {
-//                // flip before writing
-//                buffer.flip();
-//
-//                // write buffer to channel
-//                while (buffer.hasRemaining())
-//                    socket.write(buffer);
-//
-//                buffer.clear();
-//            }
-//
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//            return -1;
-//        }
-//
-//        return firstSucc.get_id();
-//        return 0;
-//    }
-
 
 
     @Override
@@ -478,18 +444,46 @@ public class Peer extends Node implements ClientPeerProtocol {
     }
 
     @Override
-    public String restore(String file) throws RemoteException {
+    public String restore(String path) throws RemoteException {
 
-        SocketChannel socket = null;
         try {
-            socket = SocketChannel.open();
-            socket.connect(new InetSocketAddress(this.addr, 19));
-            byte[] b = "BACKUP hasharoo\r\n\r\n".getBytes();
-            socket.write(ByteBuffer.wrap(b));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+            Path filePath = Paths.get(getRecoverPath(path));
 
+            String fileHash = SdisUtils.createFileHash(path, id);
+            if (fileHash == null)
+                return "failure";
+
+            GetFileMessage message = GetFileMessage.from(this, fileHash);
+            if (message == null)
+                return "failure";
+
+            int file_key = chordID(fileHash);
+            INode key_owner = find_successor(file_key);
+
+            System.out.println("[-] Restoring file [" + fileHash.substring(0, 6) + "] with key [" + file_key + "]");
+
+            SocketChannel socket = SocketChannel.open();
+            socket.connect(key_owner.get_socket_address());
+
+            message.send(socket);
+
+            GeneralMonitor monitor = new GeneralMonitor();
+            monitors.put(fileHash, monitor);
+
+            ISocketManager restoreManager = new SocketManager(new RestoreDispatcher(this, key_owner.get_id(), fileHash, filePath, monitor));
+
+            restoreManager.init();
+            selector.register(socket, restoreManager);
+
+            // Wait for success or failure :)
+            if (monitor.await_resolution(5000))
+                return monitor.get_message();
+
+            return "timeout";
+        }
+        catch (IOException ioe) {
+            ioe.printStackTrace();
+        }
         return "failure";
     }
 
@@ -532,6 +526,18 @@ public class Peer extends Node implements ClientPeerProtocol {
         return monitors.get(key);
     }
 
+    public String getPeerPath() {
+        return "peers" + File.separator + "p" + this.id + File.separator;
+    }
+
+    public String getStoragePath(String fileHash) {
+        return getPeerPath() + "storage" + File.separator + fileHash;
+    }
+
+    public String getRecoverPath(String fileName) {
+        Path path = Paths.get(fileName);
+        return getPeerPath() + "recovery" + File.separator + path.getFileName();
+    }
 
     public static void main(String[] args) throws IOException {
 

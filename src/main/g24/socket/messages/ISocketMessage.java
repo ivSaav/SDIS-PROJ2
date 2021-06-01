@@ -12,7 +12,7 @@ public interface ISocketMessage {
     String gen_header();
 
     default void send(SocketChannel socketChannel) throws IOException {
-        System.out.println("\t[>] " + this);
+        System.out.println("   [>] " + this);
 
         ByteBuffer buffer = ByteBuffer.wrap((this.gen_header() + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
         socketChannel.write(buffer);

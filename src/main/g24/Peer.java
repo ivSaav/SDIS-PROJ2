@@ -9,6 +9,7 @@ import main.g24.socket.managers.SendFileSocket;
 import main.g24.socket.managers.SocketManager;
 import main.g24.socket.managers.dispatchers.AckNackDispatcher;
 import main.g24.socket.messages.BackupMessage;
+import main.g24.socket.messages.DeleteKeyMessage;
 import main.g24.socket.messages.DeleteMessage;
 
 import java.io.IOException;
@@ -28,7 +29,6 @@ import java.rmi.server.UnicastRemoteObject;
 import java.util.*;
 import java.util.concurrent.*;
 
-import javax.swing.plaf.synth.SynthSplitPaneUI;
 
 public class Peer extends Node implements ClientPeerProtocol {
 
@@ -213,7 +213,7 @@ public class Peer extends Node implements ClientPeerProtocol {
         if (!respNode.alive())
             return "failure";
 
-        DeleteMessage message = DeleteMessage.from(this, fileHash);
+        DeleteMessage message = DeleteKeyMessage.from(this, fileHash);
         if (message == null)
             return "failure";
 

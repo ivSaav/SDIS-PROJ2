@@ -44,9 +44,17 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                     yield reply.get_status() ? new ReceiveFileSocket(peer, fileMessage) : null;
                 }
 
-                case DELETE -> {
+                case DELKEY -> {
                     ISocketFileMessage deleteMessage = (ISocketFileMessage) message;
                     boolean status = peer.deleteFileCopies(deleteMessage.get_filehash());
+                    AckMessage reply = new AckMessage(peer.get_id(), status);
+                    reply.send((SocketChannel) key.channel());
+                    yield null;
+                }
+
+                case DELCOPY -> {
+                    ISocketFileMessage deleteMessage = (ISocketFileMessage) message;
+                    boolean status = peer.deleteFile(deleteMessage.get_filehash());
                     AckMessage reply = new AckMessage(peer.get_id(), status);
                     reply.send((SocketChannel) key.channel());
                     yield null;

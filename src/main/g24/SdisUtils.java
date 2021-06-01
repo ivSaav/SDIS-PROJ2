@@ -1,11 +1,6 @@
 package main.g24;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -13,16 +8,13 @@ public class SdisUtils {
 
     public static String createFileHash(String path, int initiatorPeerId) {
         try {
-            Path file = Paths.get(path);
-            BasicFileAttributes attribs = Files.readAttributes(file, BasicFileAttributes.class); // get file metadata
-
             String originalString = path + initiatorPeerId;
 
             final MessageDigest digest = MessageDigest.getInstance("SHA3-256");
             final byte[] hashbytes = digest.digest(originalString.getBytes(StandardCharsets.US_ASCII));
             return bytesToHex(hashbytes);
         }
-        catch (IOException | NoSuchAlgorithmException e) {
+        catch (NoSuchAlgorithmException e) {
             System.out.println("[X] Couldn't create file hash. " + e);
         }
         return null;

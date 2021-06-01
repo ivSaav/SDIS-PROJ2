@@ -1,10 +1,6 @@
 package main.g24.socket.messages;
 
-import main.g24.chord.INode;
-
-import java.rmi.RemoteException;
-
-public class DeleteMessage implements ISocketFileMessage {
+public abstract class DeleteMessage implements ISocketFileMessage {
     // <PROTOCOL> <SENDER_ID> <SENDER_IP> <SENDER_PORT> <FILEHASH>
 
     public final int sender_id, sender_port;
@@ -18,45 +14,19 @@ public class DeleteMessage implements ISocketFileMessage {
         this.filehash = filehash;
     }
 
-    public static DeleteMessage from(INode node, String filehash) {
-        try {
-            return new DeleteMessage(
-                    node.get_id(),
-                    node.get_address().getHostName(),
-                    node.get_port(),
-                    filehash
-            );
-        } catch (RemoteException e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
     @Override
     public Type get_type() {
-        return Type.DELETE;
+        return null;
     }
 
     @Override
     public String gen_header() {
-        return String.format("DELETE %d %s %d %s\r\n\r\n", sender_id, sender_ip, sender_port, filehash);
+        return "INVALID DELETE MESSAGE";
     }
 
     @Override
     public String toString() {
-        return "DELETE " + sender_id + " " + filehash.substring(0, 6);
-    }
-
-    public static ISocketMessage from(String[] args) {
-        if (args.length < 4)
-            return null;
-
-        return new DeleteMessage(
-                Integer.parseInt(args[1]), // sender id
-                args[2], // sender ip
-                Integer.parseInt(args[3]), // sender port
-                args[4] // filehash
-        );
+        return "INVALID DELETE MESSAGE";
     }
 
     @Override

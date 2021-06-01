@@ -1,10 +1,8 @@
 package main.g24.socket.managers.dispatchers;
 
 import main.g24.Peer;
-import main.g24.monitors.GeneralMonitor;
 import main.g24.socket.managers.ISocketManager;
 import main.g24.socket.managers.ReceiveFileSocket;
-import main.g24.socket.managers.SocketManager;
 import main.g24.socket.messages.AckMessage;
 import main.g24.socket.messages.ISocketFileMessage;
 import main.g24.socket.messages.ISocketMessage;
@@ -28,7 +26,7 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                 case BACKUP -> {
                     ISocketFileMessage fileMessage = (ISocketFileMessage) message;
                     if (peer.hasCapacity(fileMessage.get_size())) {
-                        peer.addFileKey(fileMessage.get_filehash(), fileMessage.get_size(), fileMessage.get_rep_degree(), this.peer.get_id());
+                        peer.addFileToKey(fileMessage.get_filehash(), fileMessage.get_size(), fileMessage.get_rep_degree(), this.peer.get_id());
                         peer.addStoredFile(fileMessage.get_filehash());
                         yield new ReceiveFileSocket(peer, (ISocketFileMessage) message, true);
                     }

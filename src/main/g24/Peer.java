@@ -142,25 +142,14 @@ public class Peer extends Node implements ClientPeerProtocol {
             int file_key = chordID(fileHash);
             INode key_owner = find_successor(file_key);
 
+            System.out.println("[-] Backing up file [" + fileHash.substring(0, 6) + "] with key [" + file_key + "]");
+
             SocketChannel socket = SocketChannel.open();
             socket.connect(key_owner.get_socket_address());
 
             message.send(socket);
 
-            ISocketManager resolutionSocketManager = new SocketManager(new AckNackDispatcher(
-                    () -> {
-                        GeneralMonitor monitor = this.getMonitor(fileHash);
-                        if (monitor != null)
-                            monitor.resolve("success");
-                        return null;
-                    },
-                    () -> {
-                        GeneralMonitor monitor = this.getMonitor(fileHash);
-                        if (monitor != null)
-                            monitor.resolve("failure");
-                        return null;
-                    }
-            ));
+            ISocketManager resolutionSocketManager = new SocketManager(AckNackDispatcher.resolveFilehash(this, fileHash));
 
             SendFileSocket sf = new SendFileSocket(filePath, resolutionSocketManager);
             sf.init();
@@ -182,7 +171,7 @@ public class Peer extends Node implements ClientPeerProtocol {
     }
 
 
-    public void addFileKey(String filehash, long size, int rep_degree, int stored_at_id) {
+    public void addFileToKey(String filehash, long size, int rep_degree, int stored_at_id) {
         int key = chordID(filehash);
         Map<String, FileDetails> nodes = this.fileKeys.computeIfAbsent(key, k -> new ConcurrentHashMap<>());
         FileDetails fd = nodes.get(filehash);
@@ -196,6 +185,15 @@ public class Peer extends Node implements ClientPeerProtocol {
         }
     }
 
+    public FileDetails removeFileFromKey(String filehash) {
+        return removeFileFromKey(filehash, chordID(filehash));
+    }
+
+    public FileDetails removeFileFromKey(String filehash, int key) {
+        Map<String, FileDetails> nodes = this.fileKeys.get(key);
+        return nodes == null ? null : nodes.remove(filehash);
+    }
+
     public void addStoredFile(String filehash) {
         this.stored.add(filehash);
     }
@@ -204,7 +202,12 @@ public class Peer extends Node implements ClientPeerProtocol {
     public String delete(String file) throws RemoteException {
 
         String fileHash = SdisUtils.createFileHash(file, id);
+        if (fileHash == null)
+            return "failure";
+
         int fileKey = chordID(fileHash);
+
+        System.out.println("[-] Deleting file [" + fileHash.substring(0, 6) + "] with key [" + fileKey + "]");
 
         INode respNode = this.find_successor(fileKey);
         if (!respNode.alive())
@@ -215,11 +218,16 @@ public class Peer extends Node implements ClientPeerProtocol {
             return "failure";
 
         try {
+            ISocketManager resolutionSocketManager = new SocketManager(AckNackDispatcher.resolveFilehash(this, fileHash));
+
             // send delete message to the responsible peer
             SocketChannel socket = SocketChannel.open();
             socket.connect(respNode.get_socket_address());
             message.send(socket);
-        
+
+            resolutionSocketManager.init();
+            selector.register(socket, resolutionSocketManager);
+
             // Wait for success or failure :)
             GeneralMonitor monitor = new GeneralMonitor();
             monitors.put(fileHash, monitor);
@@ -243,29 +251,24 @@ public class Peer extends Node implements ClientPeerProtocol {
     public boolean deleteFileCopies(String fileHash) {
 
         int fileKey = chordID(fileHash);
+        boolean responsible = isResponsible(fileKey);
 
-        // remove file from storage ( may or may not hold this file)
-        if (this.stored.contains(fileHash)) {
-            boolean deleted = this.deleteFile(fileHash);
-            if (!deleted && !isResponsible(fileKey)) {
-                System.out.println("Couldn't delete stored file");
-                return false;
-            }
-            else if (deleted && !isResponsible(fileKey)) {
-                // only stored the file (exit here)
-                return true;
-            }
-        }
-
-        // this isn't responsible for the requested file
-        if (!this.fileKeys.containsKey(fileKey)) {
-            System.out.println("Not responsible for this key");
+        if (!responsible)
             return false;
+
+        FileDetails fileDetails = removeFileFromKey(fileHash, fileKey);
+        if (fileDetails == null)
+            return false;
+
+        if (this.stored.contains(fileHash)) {
+            deleteFile(fileHash);
+            // TODO: Remove self from file details
         }
+
+        return true;
 
         // TODO: remove copies from successors
 
-        return true;
         // try {
         //     FileDetails fileDetails = this.fileKeys.get(fileKey).get(fileHash);
         //     // send DELETE messages to copy holders
@@ -290,7 +293,6 @@ public class Peer extends Node implements ClientPeerProtocol {
         //     e.printStackTrace();
         //     return false;
         // }
-
     }
 
     public boolean deleteFile(String fileHash) {
@@ -309,7 +311,6 @@ public class Peer extends Node implements ClientPeerProtocol {
             }
 
             return true;
-
         }
         catch (IOException e) {
             e.printStackTrace();

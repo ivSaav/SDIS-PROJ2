@@ -532,15 +532,6 @@ public class Peer extends Node implements ClientPeerProtocol {
         return monitors.get(key);
     }
 
-    public static boolean isAlive(INode succ) {
-        try {
-            succ.alive();
-        } catch (RemoteException e) {
-            return false;
-        }
-        return true;
-    }
-
 
     public static void main(String[] args) throws IOException {
 

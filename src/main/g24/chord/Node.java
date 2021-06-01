@@ -212,4 +212,12 @@ public class Node implements INode {
         return getPeerPath() + "storage" + File.separator + fileHash;
     }
 
+    protected static boolean isAlive(INode node) {
+        try {
+            node.alive();
+        } catch (RemoteException e) {
+            return false;
+        }
+        return true;
+    }
 }

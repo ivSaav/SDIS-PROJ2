@@ -52,7 +52,7 @@ public class Peer extends Node implements ClientPeerProtocol {
     public Peer(InetAddress addr, int port) {
         super(addr, port);
 
-        this.maxSpace = 1000000; // 1GB space in the beginning
+        this.maxSpace = 1000000000L; // 1GB space in the beginning
         this.diskUsage = 0;
         this.selector = new ServerSocketHandler(this);
 
@@ -212,8 +212,9 @@ public class Peer extends Node implements ClientPeerProtocol {
         return null;
     }
 
-    public void addStoredFile(String filehash) {
+    public void addStoredFile(String filehash, long fileSize) {
         this.stored.add(filehash);
+        this.increaseDiskUsage(fileSize);
     }
 
     @Override
@@ -228,8 +229,14 @@ public class Peer extends Node implements ClientPeerProtocol {
         System.out.println("[-] Deleting file [" + fileHash.substring(0, 6) + "] with key [" + fileKey + "]");
 
         INode respNode = this.find_successor(fileKey);
-        if (!respNode.alive())
+        if (!isAlive(respNode))
             return "failure";
+
+        // the 'client' peer is the one repsonsible for the file
+        // don't send message
+        if (respNode.get_id() == this.get_id()) {
+            return this.deleteFileCopies(fileHash) ? "success" : "failure";
+        }
 
         DeleteMessage message = DeleteKeyMessage.from(this, fileHash);
         if (message == null)
@@ -365,30 +372,6 @@ public class Peer extends Node implements ClientPeerProtocol {
         }
     }
 
-//    @Override
-//    public void handleFileRemoval(int peerID, String fileHash) throws RemoteException {
-//        FileDetails fileDetails = this.initedFiles.get(fileHash);
-//        fileDetails.removeCopy(peerID);
-//
-//        int lastCopy = fileDetails.getLastCopy();
-//
-//        if (lastCopy < 0) {
-//            System.out.println("[!] Couldn't maintain desired replication degree");
-//            return;
-//        }
-//
-//        // get first successor of last peer that stored this file
-//        INode nextPeer = this.find_successor(lastCopy);
-//        int newCopy = nextPeer.copyStoredFile(fileHash);
-//
-//        if (newCopy > 0) {
-//            fileDetails.addCopy(newCopy);
-//        }
-//        else {
-//            System.out.println("[!] Couldn't maintain desired replication degree");
-//        }
-//    }
-
 
     @Override
     public String reclaim(int new_capacity) throws RemoteException {
@@ -405,6 +388,8 @@ public class Peer extends Node implements ClientPeerProtocol {
             int fileKey = chordID(fileHash);
 
             INode respNode = this.find_successor(fileKey);
+
+            // TODO if respNode is 'this' don't send message
             
             if (isAlive(respNode)) {
 
@@ -491,7 +476,7 @@ public class Peer extends Node implements ClientPeerProtocol {
     public String state() throws RemoteException {
         StringBuilder ret = new StringBuilder("\n========== INFO ==========\n");
 
-        ret.append(String.format("peerID: %d \nmax capacity: %d KB\nused: %d KB\n", this.id, this.maxSpace, this.diskUsage));
+        ret.append(String.format("peerID: %d \nmax capacity: %d KB\nused: %d KB\n", this.id, this.maxSpace/1000, this.diskUsage/1000));
 
         if (!this.fileKeys.isEmpty()) {
             ret.append("\n========== OWNED KEYS ===========\n");

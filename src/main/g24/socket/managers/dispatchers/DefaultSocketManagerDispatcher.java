@@ -31,7 +31,7 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                     BackupMessage fileMessage = (BackupMessage) message;
                     if (peer.hasCapacity(fileMessage.get_size())) {
                         peer.addFileToKey(fileMessage.get_filehash(), fileMessage.get_size(), fileMessage.get_rep_degree(), this.peer.get_id());
-                        peer.addStoredFile(fileMessage.get_filehash());
+                        peer.addStoredFile(fileMessage.get_filehash(), fileMessage.file_size);
                         yield new ReceiveFileSocket(peer, (ISocketFileMessage) message, true);
                     }
 

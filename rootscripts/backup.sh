@@ -13,8 +13,10 @@ argc=$#
 if (( argc < 1 ))
 then
   pap="ap1" # default is ap1
+  file="shrug.png"
 else
   pap=$1
+  file=$2
 fi
 
-java -cp src/build main.g24.TestApp "${pap}" BACKUP shrug.png 2
+java -cp src/build main.g24.TestApp "${pap}" BACKUP "${file}" 2

@@ -149,15 +149,21 @@ public class Peer extends Node implements ClientPeerProtocol {
             System.out.println("[-] Backing up file [" + fileHash.substring(0, 6) + "] with key [" + file_key + "]");
 
             SocketChannel socket = SocketChannel.open();
+            socket.configureBlocking(false);
             socket.connect(key_owner.get_socket_address());
 
-            message.send(socket);
-
             ISocketManager resolutionSocketManager = new SocketManager(AckNackDispatcher.resolveFilehash(this, fileHash));
-
             SendFileSocket sf = new SendFileSocket(filePath, resolutionSocketManager);
-            sf.init();
-            selector.register(socket, sf);
+            ISocketManager iSocketManager = new SocketManager(() -> {
+                try {
+                    message.send(socket);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    return null;
+                }
+                return sf;
+            });
+            selector.register(socket, iSocketManager);
 
             // Wait for success or failure :)
             GeneralMonitor monitor = new GeneralMonitor();
@@ -236,14 +242,22 @@ public class Peer extends Node implements ClientPeerProtocol {
             return "failure";
 
         try {
-            ISocketManager resolutionSocketManager = new SocketManager(AckNackDispatcher.resolveFilehash(this, fileHash));
-
             // send delete message to the responsible peer
             SocketChannel socket = SocketChannel.open();
+            socket.configureBlocking(false);
             socket.connect(respNode.get_socket_address());
-            message.send(socket);
 
-            resolutionSocketManager.init();
+            ISocketManager resolutionSocketManager = new SocketManager(() -> {
+                try {
+                    message.send(socket);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    return null;
+                }
+
+                return new SocketManager(AckNackDispatcher.resolveFilehash(this, fileHash));
+            });
+
             selector.register(socket, resolutionSocketManager);
 
             // Wait for success or failure :)
@@ -463,16 +477,28 @@ public class Peer extends Node implements ClientPeerProtocol {
             System.out.println("[-] Restoring file [" + fileHash.substring(0, 6) + "] with key [" + file_key + "]");
 
             SocketChannel socket = SocketChannel.open();
+            socket.configureBlocking(false);
             socket.connect(key_owner.get_socket_address());
-
-            message.send(socket);
 
             GeneralMonitor monitor = new GeneralMonitor();
             monitors.put(fileHash, monitor);
 
-            ISocketManager restoreManager = new SocketManager(new RestoreDispatcher(this, key_owner.get_id(), fileHash, filePath, monitor));
+            ISocketManager restoreManager = new SocketManager(() -> {
+                try {
+                    message.send(socket);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    return null;
+                }
 
-            restoreManager.init();
+                try {
+                    return new SocketManager(new RestoreDispatcher(this, key_owner.get_id(), fileHash, filePath, monitor));
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                    return null;
+                }
+            });
+
             selector.register(socket, restoreManager);
 
             // Wait for success or failure :)
@@ -521,6 +547,9 @@ public class Peer extends Node implements ClientPeerProtocol {
         return ret.toString();
     }
 
+    public ServerSocketHandler getSelector() {
+        return selector;
+    }
 
     public GeneralMonitor getMonitor(String key) {
         return monitors.get(key);

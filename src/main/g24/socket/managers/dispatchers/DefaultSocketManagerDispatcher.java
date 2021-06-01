@@ -4,6 +4,7 @@ import main.g24.Peer;
 import main.g24.socket.managers.ISocketManager;
 import main.g24.socket.managers.ReceiveFileSocket;
 import main.g24.socket.managers.SendFileSocket;
+import main.g24.socket.managers.SocketManager;
 import main.g24.socket.messages.*;
 
 import java.io.IOException;
@@ -12,6 +13,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.rmi.RemoteException;
 import java.util.Collection;
 
 
@@ -32,7 +34,36 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                     if (peer.hasCapacity(fileMessage.get_size())) {
                         peer.addFileToKey(fileMessage.get_filehash(), fileMessage.get_size(), fileMessage.get_rep_degree(), this.peer.get_id());
                         peer.addStoredFile(fileMessage.get_filehash());
-                        yield new ReceiveFileSocket(peer, (ISocketFileMessage) message, true);
+                        yield new ReceiveFileSocket(peer, (ISocketFileMessage) message, () -> {
+                            AckMessage ack = new AckMessage(peer.get_id(), true);
+                            try {
+                                ack.send((SocketChannel) key.channel());
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+
+                            // Replication go bbbbrrrrr
+                            ReplicateMessage repl = ReplicateMessage.from(peer, fileMessage.filehash, fileMessage.file_size, fileMessage.rep_degree);
+                            try {
+                                SocketChannel socket = SocketChannel.open();
+                                socket.configureBlocking(false);
+                                socket.connect(peer.get_successor().get_socket_address());
+
+                                ISocketManager repl_manager = new SocketManager(() -> {
+                                    try {
+                                        repl.send(socket);
+                                    } catch (IOException e) {
+                                        e.printStackTrace();
+                                    }
+                                    return null;
+                                });
+
+                                peer.getSelector().register(socket, repl_manager);
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                            return null;
+                        });
                     }
 
                     System.err.println("NOT YET IMPLEMENTED");

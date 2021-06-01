@@ -1,6 +1,5 @@
 package main.g24.chord;
 
-import java.io.File;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -194,7 +193,7 @@ public class Node implements INode {
      */
     @Override
     public void check_predecessor() throws RemoteException {
-        if (!predecessor.alive()) {
+        if (predecessor != null && !isAlive(predecessor)) {
             predecessor = null;
             on_predecessor_death();
         }

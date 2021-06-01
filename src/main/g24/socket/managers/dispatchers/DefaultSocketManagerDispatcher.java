@@ -2,6 +2,7 @@ package main.g24.socket.managers.dispatchers;
 
 import main.g24.Peer;
 import main.g24.socket.managers.ISocketManager;
+import main.g24.socket.managers.StateSocketManager;
 import main.g24.socket.managers.ReceiveFileSocket;
 import main.g24.socket.managers.SendFileSocket;
 import main.g24.socket.messages.*;
@@ -32,6 +33,7 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                     if (peer.hasCapacity(fileMessage.get_size())) {
                         peer.addFileToKey(fileMessage.get_filehash(), fileMessage.get_size(), fileMessage.get_rep_degree(), this.peer.get_id());
                         peer.addStoredFile(fileMessage.get_filehash(), fileMessage.file_size);
+                        peer.backupState();
                         yield new ReceiveFileSocket(peer, (ISocketFileMessage) message, true);
                     }
 
@@ -88,6 +90,12 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                     }
                     reply.send((SocketChannel) key.channel());
                     yield futureManager;
+                }
+
+                case STATE -> {
+                    System.out.println("STATE MSG");
+                    StateMessage maintenanceMessage = (StateMessage) message;
+                    yield new StateSocketManager(peer, maintenanceMessage.sender_id);
                 }
 
                 default -> null;

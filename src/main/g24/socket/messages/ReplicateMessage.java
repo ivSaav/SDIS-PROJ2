@@ -2,11 +2,9 @@ package main.g24.socket.messages;
 
 import main.g24.chord.INode;
 
-import java.io.IOException;
-import java.nio.channels.SocketChannel;
 import java.rmi.RemoteException;
 
-public class ReplicateMessage implements ISocketMessage, ISocketFileMessage {
+public class ReplicateMessage implements ISocketFileMessage {
     // <PROTOCOL> <SENDER_ID> <SENDER_IP> <SENDER_PORT> <FILEHASH> <FILE_SIZE>
 
     public final int sender_id, sender_port;

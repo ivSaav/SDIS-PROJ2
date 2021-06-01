@@ -7,6 +7,7 @@ import main.g24.socket.ServerSocketHandler;
 import main.g24.socket.managers.ISocketManager;
 import main.g24.socket.managers.SendFileSocket;
 import main.g24.socket.managers.SocketManager;
+import main.g24.socket.managers.StateSocketManager;
 import main.g24.socket.managers.dispatchers.AckNackDispatcher;
 import main.g24.socket.managers.dispatchers.RestoreDispatcher;
 import main.g24.socket.messages.BackupMessage;
@@ -14,11 +15,13 @@ import main.g24.socket.messages.DeleteCopyMessage;
 import main.g24.socket.messages.DeleteKeyMessage;
 import main.g24.socket.messages.DeleteMessage;
 import main.g24.socket.messages.RemovedMessage;
+import main.g24.socket.messages.StateMessage;
 import main.g24.socket.messages.GetFileMessage;
 
 import java.io.File;
 import java.io.IOException;
 import java.net.*;
+import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -48,6 +51,8 @@ public class Peer extends Node implements ClientPeerProtocol {
     private long maxSpace; // max space in KBytes (1000 bytes)
     private long diskUsage; // disk usage in KBytes (1000 bytes)
 
+    private Map<Integer, Map<String, FileDetails>> predFileKeys;
+
     // PEER
     public Peer(InetAddress addr, int port) {
         super(addr, port);
@@ -58,6 +63,8 @@ public class Peer extends Node implements ClientPeerProtocol {
 
         this.stored = ConcurrentHashMap.newKeySet();
         this.fileKeys = new ConcurrentHashMap<>();
+
+        this.predFileKeys = new ConcurrentHashMap<>();
 
         this.monitors = new ConcurrentHashMap<>();
     }
@@ -111,6 +118,7 @@ public class Peer extends Node implements ClientPeerProtocol {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleAtFixedRate(() -> {
             try {
+                this.check_predecessor();
                 this.stabilize();
                 this.fix_fingers();
             } catch (Exception e) {
@@ -522,6 +530,44 @@ public class Peer extends Node implements ClientPeerProtocol {
     public String getRecoverPath(String fileName) {
         Path path = Paths.get(fileName);
         return getPeerPath() + "recovery" + File.separator + path.getFileName();
+    }
+
+    public Map<Integer, Map<String, FileDetails>> getFileKeys() {
+        return this.fileKeys;
+    }
+
+    public void setPredecessorKeys(Map<Integer, Map<String, FileDetails>> keys) {
+        this.predFileKeys = keys;
+        System.out.println(this.predFileKeys);
+    }
+
+    @Override
+    protected void on_predecessor_death() {
+        super.on_predecessor_death();
+
+    }
+
+    public void backupState() {
+        StateMessage message = StateMessage.from(this);
+        if (message == null) 
+            return;
+
+        try {
+            SocketChannel socket = SocketChannel.open();
+            System.out.println(this.get_successor().get_id());
+            socket.connect(this.get_successor().get_socket_address());
+
+            message.send(socket);
+
+            StateSocketManager manager = new StateSocketManager(this, id, SelectionKey.OP_WRITE);
+            manager.init();
+            selector.register(socket, manager);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.out.println("[X] Couldn't backup state.");
+        }
+        
     }
 
     public static void main(String[] args) throws IOException {

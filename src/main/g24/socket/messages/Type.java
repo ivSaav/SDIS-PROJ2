@@ -9,4 +9,5 @@ public enum Type {
     REPLICATE,
     ACK,
     REMOVED,
+    STATE,
 }

@@ -54,4 +54,14 @@ public class FileDetails implements Serializable {
     public int getLastCopy() {
         return this.copies.isEmpty() ? -1 : this.copies.get(copies.size()-1);
     }
+
+    @Override
+    public String toString() {
+        return "FileDetails{" +
+                "hash='" + hash + '\'' +
+                ", size=" + size +
+                ", desiredRepDegree=" + desiredRepDegree +
+                ", copies=" + copies +
+                '}';
+    }
 }

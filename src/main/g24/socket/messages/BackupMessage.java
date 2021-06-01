@@ -47,7 +47,7 @@ public class BackupMessage implements ISocketMessage, ISocketFileMessage {
 
     @Override
     public String gen_header() {
-        return String.format("BACKUP %d %s %d %s %d %d\r\n\r\n", sender_id, sender_ip, sender_port, filehash, rep_degree, file_size);
+        return String.format("BACKUP %d %s %d %s %d %d", sender_id, sender_ip, sender_port, filehash, rep_degree, file_size);
     }
 
     @Override
@@ -65,7 +65,7 @@ public class BackupMessage implements ISocketMessage, ISocketFileMessage {
                 Integer.parseInt(args[3]), // sender port
                 args[4], // filehash
                 Integer.parseInt(args[5]), // rep degree
-                Integer.parseInt(args[6]) // file_size
+                Long.parseLong(args[6]) // file_size
         );
     }
 
@@ -79,7 +79,6 @@ public class BackupMessage implements ISocketMessage, ISocketFileMessage {
         return file_size;
     }
 
-    @Override
     public int get_rep_degree() {
         return rep_degree;
     }

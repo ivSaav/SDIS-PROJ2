@@ -13,6 +13,8 @@ public abstract class SocketMessageFactory {
            case BACKUP -> BackupMessage.from(args);
            case REPLICATE -> ReplicateMessage.from(args);
            case DELETE -> DeleteMessage.from(args);
+           case GETFILE -> GetFileMessage.from(args);
+           case FILEHERE -> FileHereMessage.from(args);
            default -> null;
        };
     }

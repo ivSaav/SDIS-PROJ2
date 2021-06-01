@@ -4,6 +4,7 @@ public enum Type {
     BACKUP,
     DELETE,
     GETFILE,
+    FILEHERE,
     REPLICATE,
     ACK,
 }

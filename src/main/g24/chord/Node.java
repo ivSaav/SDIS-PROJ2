@@ -202,14 +202,4 @@ public class Node implements INode {
 
     protected void on_predecessor_death() {}
 
-    @Override
-    public String getPeerPath() {
-        return "peers" + File.separator + "p" + this.id + File.separator;
-    }
-
-    @Override
-    public String getStoragePath(String fileHash) {
-        return getPeerPath() + "storage" + File.separator + fileHash;
-    }
-
 }

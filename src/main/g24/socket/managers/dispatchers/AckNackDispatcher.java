@@ -19,12 +19,13 @@ public class AckNackDispatcher implements ISocketManagerDispatcher {
     }
 
     public static AckNackDispatcher resolveFilehash(Peer peer, String fileHash) {
-        return new AckNackDispatcher(() -> {
-            GeneralMonitor monitor = peer.getMonitor(fileHash);
-            if (monitor != null)
-                monitor.resolve("success");
-            return null;
-        },
+        return new AckNackDispatcher(
+                () -> {
+                    GeneralMonitor monitor = peer.getMonitor(fileHash);
+                    if (monitor != null)
+                        monitor.resolve("success");
+                    return null;
+                },
                 () -> {
                     GeneralMonitor monitor = peer.getMonitor(fileHash);
                     if (monitor != null)
@@ -35,14 +36,14 @@ public class AckNackDispatcher implements ISocketManagerDispatcher {
     }
 
 
-        @Override
-        public ISocketManager dispatch (ISocketMessage message, SelectionKey key){
-            return switch (message.get_type()) {
-                case ACK -> {
-                    AckMessage ack = (AckMessage) message;
-                    yield ack.get_status() ? onAck.get() : onNack.get();
-                }
-                default -> null;
-            };
-        }
+    @Override
+    public ISocketManager dispatch(ISocketMessage message, SelectionKey key) {
+        return switch (message.get_type()) {
+            case ACK -> {
+                AckMessage ack = (AckMessage) message;
+                yield ack.get_status() ? onAck.get() : onNack.get();
+            }
+            default -> null;
+        };
     }
+}

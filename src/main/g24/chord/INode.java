@@ -39,6 +39,4 @@ public interface INode extends Remote {
     InetAddress get_address() throws RemoteException;
     int get_port() throws RemoteException;
     InetSocketAddress get_socket_address() throws RemoteException;
-    String getStoragePath(String fileHash) throws RemoteException;
-    String getPeerPath() throws RemoteException;
 }

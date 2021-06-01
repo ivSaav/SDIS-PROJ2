@@ -46,7 +46,9 @@ public class FileDetails implements Serializable {
 
     public void removeCopy(int peerID) {
         int idx = this.copies.indexOf(peerID);
-        this.copies.remove(idx);
+
+        if (idx != -1)
+            this.copies.remove(idx);
     }
 
     public int getLastCopy() {

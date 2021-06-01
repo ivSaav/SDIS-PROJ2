@@ -52,12 +52,10 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                     yield null;
                 }
 
-                case DELCOPY -> {
+                case DELCOPY -> { 
                     ISocketFileMessage deleteMessage = (ISocketFileMessage) message;
-                    boolean status = peer.deleteFile(deleteMessage.get_filehash());
-                    AckMessage reply = new AckMessage(peer.get_id(), status);
-                    reply.send((SocketChannel) key.channel());
-                    yield null;
+                    peer.deleteFile(deleteMessage.get_filehash());
+                    yield null; // delete copy messages don't require Acknowledgements
                 }
 
                 default -> null;

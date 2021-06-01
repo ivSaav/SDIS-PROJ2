@@ -9,6 +9,7 @@ import main.g24.socket.managers.SendFileSocket;
 import main.g24.socket.managers.SocketManager;
 import main.g24.socket.managers.dispatchers.AckNackDispatcher;
 import main.g24.socket.messages.BackupMessage;
+import main.g24.socket.messages.DeleteCopyMessage;
 import main.g24.socket.messages.DeleteKeyMessage;
 import main.g24.socket.messages.DeleteMessage;
 
@@ -248,53 +249,63 @@ public class Peer extends Node implements ClientPeerProtocol {
         return this.fileKeys.containsKey(fileKey);
     }
 
+    /**
+     * Removes a file from storage
+     * Sends DELCOPY messages to peers who have this file
+     * Only called on DELKEY requests
+     * @param fileHash
+     * @return
+     */
     public boolean deleteFileCopies(String fileHash) {
 
         int fileKey = chordID(fileHash);
         boolean responsible = isResponsible(fileKey);
 
+        // Not responsible for this file (Should not have been called)
         if (!responsible)
             return false;
 
+        // remove file key holder map
         FileDetails fileDetails = removeFileFromKey(fileHash, fileKey);
         if (fileDetails == null)
             return false;
 
         if (this.stored.contains(fileHash)) {
             deleteFile(fileHash);
-            // TODO: Remove self from file details
+            // remove self from fileDetails
+            // thus preventing messages to the same peer
+            fileDetails.removeCopy(this.id); 
         }
 
+        // sending DELCOPY messages to the other peers
+        try {
+            // send DELETE messages to copy holders
+            for (int i : fileDetails.getFileCopies()) {
+                INode succCopy = this.find_successor(i);
+
+                if (!succCopy.alive())
+                    continue;
+
+                DeleteCopyMessage message = DeleteCopyMessage.from(this, fileHash);
+                if (message == null)
+                    continue;
+
+                SocketChannel socket = SocketChannel.open();
+                socket.connect(succCopy.get_socket_address());
+                message.send(socket);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         return true;
-
-        // TODO: remove copies from successors
-
-        // try {
-        //     FileDetails fileDetails = this.fileKeys.get(fileKey).get(fileHash);
-        //     // send DELETE messages to copy holders
-        //     for (int i : fileDetails.getFileCopies()) {
-        //         INode succCopy = this.find_successor(i);
-
-        //         if (!succCopy.alive())
-        //             continue;
-
-        //         DeleteMessage message = DeleteMessage.from(this, fileHash);
-        //         if (message == null)
-        //             return false;
-
-        //         SocketChannel socket = SocketChannel.open();
-        //         socket.connect(succCopy.get_socket_address());
-        //         message.send(socket);
-        //     }
-
-        //     return true;
-
-        // } catch (IOException e) {
-        //     e.printStackTrace();
-        //     return false;
-        // }
     }
 
+    /**
+     * Delete a file stored in this peer
+     * @param fileHash file to be removed
+     * @return
+     */
     public boolean deleteFile(String fileHash) {
         Path path = Paths.get(this.getStoragePath(fileHash));
 

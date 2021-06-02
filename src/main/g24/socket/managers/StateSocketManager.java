@@ -17,7 +17,7 @@ public class StateSocketManager implements ISocketManager {
 
     private final Peer peer;
     private ByteBuffer buffer;
-    private int interestOp;
+    private final int interestOp;
 
 
     public StateSocketManager(Peer peer, int interestOp) {
@@ -43,7 +43,6 @@ public class StateSocketManager implements ISocketManager {
     @Override
     public void init() {
         if (this.interestOp == SelectionKey.OP_WRITE) {
-
             ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
 
             PeerInfo info = PeerInfo.from(peer);
@@ -52,6 +51,7 @@ public class StateSocketManager implements ISocketManager {
             try {
                 objStream = new ObjectOutputStream(byteStream);
                 objStream.writeObject(info);
+                objStream.flush();
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -62,6 +62,7 @@ public class StateSocketManager implements ISocketManager {
         }
         else {
             buffer = ByteBuffer.allocate(Peer.BLOCK_SIZE);
+            buffer.clear();
         }
     }
 
@@ -70,7 +71,6 @@ public class StateSocketManager implements ISocketManager {
         return this.interestOp;
     }
 
-    @SuppressWarnings("MagicConstant")
     private void receiveState(SelectionKey key) {
         SocketChannel client = (SocketChannel) key.channel();
 
@@ -95,7 +95,6 @@ public class StateSocketManager implements ISocketManager {
         }
     }
 
-    @SuppressWarnings("MagicConstant")
     private void sendState(SelectionKey key) {
         SocketChannel client = (SocketChannel) key.channel();
 
@@ -104,7 +103,7 @@ public class StateSocketManager implements ISocketManager {
             // read from tcp channel
             while ((n = client.write(buffer)) > 0) {}
 
-            // wrote everithing (close)
+            // wrote everything (close)
             if (!buffer.hasRemaining()) {
                 client.close();
             }
@@ -121,7 +120,7 @@ public class StateSocketManager implements ISocketManager {
     public static Object byteToObj(byte[] bytes) throws IOException, ClassNotFoundException {
         ByteArrayInputStream byteStream = new ByteArrayInputStream(bytes);
         ObjectInputStream objStream = new ObjectInputStream(byteStream);
-    
+
         return objStream.readObject();
     }
 

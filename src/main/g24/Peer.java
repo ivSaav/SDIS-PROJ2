@@ -116,8 +116,8 @@ public class Peer extends Node implements ClientPeerProtocol {
                 this.fix_fingers();
                 this.check_predecessor();
             } catch (Exception e) {
-                System.err.println("[X] Maintenance error");
-                e.printStackTrace();
+                System.err.println("[!] Warning stabilization cycle skipped");
+//                e.printStackTrace();
             }
         }, 500, 1000, TimeUnit.MILLISECONDS);
 

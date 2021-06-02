@@ -140,6 +140,8 @@ public class Peer extends Node implements ClientPeerProtocol {
     @Override
     public String backup(String path, int repDegree) throws RemoteException {
 
+        repDegree = Math.max(2, repDegree);
+
         try {
             Path filePath = Paths.get(path);
             long size = Files.size(filePath);

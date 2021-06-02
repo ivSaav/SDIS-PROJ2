@@ -154,7 +154,7 @@ public class Node implements INode {
     }
 
     public INode find_next_live() {
-        for (int i = 2; i<this.fingers.size(); i++) {
+        for (int i = 1; i<this.fingers.size(); i++) {
             if (isAlive(fingers.get(i)))
                 return fingers.get(i);
         }
@@ -178,6 +178,7 @@ public class Node implements INode {
             successor = x;
             on_new_successor();
         }
+
         successor.notify(this);
     }
 
@@ -229,7 +230,7 @@ public class Node implements INode {
     protected static boolean isAlive(INode node) {
         try {
             node.alive();
-        } catch (RemoteException e) {
+        } catch (Exception e) {
             return false;
         }
         return true;

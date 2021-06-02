@@ -8,10 +8,9 @@ import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
-import java.util.Map;
 
-import main.g24.FileDetails;
 import main.g24.Peer;
+import main.g24.socket.messages.PeerInfo;
 
 public class StateSocketManager implements ISocketManager {
 
@@ -46,12 +45,13 @@ public class StateSocketManager implements ISocketManager {
         if (this.interestOp == SelectionKey.OP_WRITE) {
 
             ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
-            Map<Integer, Map<String, FileDetails>> fk = peer.getFileKeys();
+
+            PeerInfo info = PeerInfo.from(peer);
 
             ObjectOutputStream objStream;
             try {
                 objStream = new ObjectOutputStream(byteStream);
-                objStream.writeObject(fk);
+                objStream.writeObject(info);
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -82,9 +82,8 @@ public class StateSocketManager implements ISocketManager {
             if (n < 0) {
                 buffer.flip();
 
-                @SuppressWarnings("unchecked")
-                Map<Integer, Map<String, FileDetails>> fileKeys = (Map<Integer, Map<String, FileDetails>>) byteToObj(buffer.array());
-                peer.setPredecessorKeys(fileKeys);
+                PeerInfo info = (PeerInfo) byteToObj(buffer.array());
+                peer.savePeerInfo(info);
                 client.close();
             }
 

@@ -17,6 +17,7 @@ import main.g24.socket.messages.DeleteMessage;
 import main.g24.socket.messages.RemovedMessage;
 import main.g24.socket.messages.StateMessage;
 import main.g24.socket.messages.GetFileMessage;
+import main.g24.socket.messages.PeerInfo;
 
 import java.io.File;
 import java.io.IOException;
@@ -48,10 +49,12 @@ public class Peer extends Node implements ClientPeerProtocol {
 
     private final Map<String, GeneralMonitor> monitors;
 
+    private boolean dirtyState;
+
     private long maxSpace; // max space in KBytes (1000 bytes)
     private long diskUsage; // disk usage in KBytes (1000 bytes)
 
-    private Map<Integer, Map<String, FileDetails>> predFileKeys;
+    private Map<Integer, PeerInfo> peerBackup;
 
     // PEER
     public Peer(InetAddress addr, int port) {
@@ -64,9 +67,14 @@ public class Peer extends Node implements ClientPeerProtocol {
         this.stored = ConcurrentHashMap.newKeySet();
         this.fileKeys = new ConcurrentHashMap<>();
 
-        this.predFileKeys = new ConcurrentHashMap<>();
+        // this.predFileKeys = new ConcurrentHashMap<>();
+        // this.predStored = ConcurrentHashMap.newKeySet();
+
+        this.peerBackup = new ConcurrentHashMap<>();
 
         this.monitors = new ConcurrentHashMap<>();
+
+        this.dirtyState = false;
     }
 
     public void increaseDiskUsage(long size) {
@@ -120,20 +128,24 @@ public class Peer extends Node implements ClientPeerProtocol {
             try {
                 this.check_predecessor();
                 this.stabilize();
-                this.fix_fingers();
+
+                if (dirtyState) {
+                    this.backupState();
+                }
             } catch (Exception e) {
+                System.err.println("[X] Maintenance error");
                 e.printStackTrace();
             }
         }, 500, 1000, TimeUnit.MILLISECONDS);
 
-        ScheduledExecutorService anotherOne = Executors.newSingleThreadScheduledExecutor();
-        anotherOne.scheduleAtFixedRate(() -> {
+        ScheduledExecutorService fingerFixer = Executors.newSingleThreadScheduledExecutor();
+        fingerFixer.scheduleAtFixedRate(() -> {
             try {
                 this.fix_fingers();
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        }, 1500, 2000, TimeUnit.MILLISECONDS);
+        }, 500, 500, TimeUnit.MILLISECONDS);
 
         ExecutorService tcpService = Executors.newSingleThreadExecutor();
         tcpService.execute(selector);
@@ -203,6 +215,7 @@ public class Peer extends Node implements ClientPeerProtocol {
             fd = new FileDetails(filehash, size, rep_degree);
             fd.addCopy(stored_at_id);
             nodes.put(filehash, fd);
+            this.dirtyState = true;
         }
     }
 
@@ -223,6 +236,7 @@ public class Peer extends Node implements ClientPeerProtocol {
 
             if (fileDetails != null) {
                 fileDetails.removeCopy(copyPeerID);
+                this.dirtyState = true;
                 return fileDetails;
             }
         }
@@ -230,6 +244,7 @@ public class Peer extends Node implements ClientPeerProtocol {
     }
 
     public void addStoredFile(String filehash, long fileSize) {
+        this.dirtyState = true;
         this.stored.add(filehash);
         this.increaseDiskUsage(fileSize);
     }
@@ -547,26 +562,57 @@ public class Peer extends Node implements ClientPeerProtocol {
         return this.fileKeys;
     }
 
-    public void setPredecessorKeys(Map<Integer, Map<String, FileDetails>> keys) {
-        this.predFileKeys = keys;
-        System.out.println(predFileKeys);
+    public Set<String> getStoredFiles() {
+        return this.stored;
     }
 
-    private void mergeFileKeys() {
-        for (Map.Entry<Integer, Map<String, FileDetails>> entry : this.predFileKeys.entrySet()) {
+    public PeerInfo getSuccessorBackup() {
+        for (PeerInfo info : this.peerBackup.values()) {
+            return info;
+        }
+        return null;
+    }
+
+
+    public void savePeerInfo(PeerInfo peerInfo) {
+        this.peerBackup.put(peerInfo.id, peerInfo);
+    }
+
+    private void mergeFileKeys(PeerInfo info) {
+        for (Map.Entry<Integer, Map<String, FileDetails>> entry : info.fileKeys.entrySet()) {
             Map<String, FileDetails> filesOfKey = this.fileKeys.computeIfAbsent(entry.getKey(), k -> new ConcurrentHashMap<>());
             
-            for (Map.Entry<String, FileDetails> fileEntry : entry.getValue().entrySet())
+            for (Map.Entry<String, FileDetails> fileEntry : entry.getValue().entrySet()) {
                 filesOfKey.put(fileEntry.getKey(), fileEntry.getValue());
+            }
         }
     }
 
     @Override
     protected void on_predecessor_death() {
         super.on_predecessor_death();
-        this.mergeFileKeys();
-        System.out.println(this.fileKeys);
-        System.out.println(this.predFileKeys);
+
+        PeerInfo info = this.getSuccessorBackup();
+
+        if (info == null) {
+            System.out.println("[!] Predecessor died (no backup records).");
+            return;
+        }
+
+        this.mergeFileKeys(info);
+
+        // TODO replicate if peer who died had a stored copy which he was responsible for
+        this.stored.addAll(info.storedFiles);
+
+        System.out.println("[#] " + info.id + " DEATH");
+        for (Map.Entry<Integer, Map<String, FileDetails>> fdMap : info.fileKeys.entrySet()) {
+            int key = fdMap.getKey();
+            System.out.println("  KEY: " + key);
+            for (FileDetails fd : info.fileKeys.get(key).values()) 
+                System.out.println("    | " + fd);
+        }
+
+        this.dirtyState = true;
     }
 
     public void backupState() {
@@ -576,7 +622,6 @@ public class Peer extends Node implements ClientPeerProtocol {
 
         try {
             SocketChannel socket = SocketChannel.open();
-            System.out.println(this.get_successor().get_id());
             socket.connect(this.get_successor().get_socket_address());
 
             message.send(socket);
@@ -584,6 +629,8 @@ public class Peer extends Node implements ClientPeerProtocol {
             StateSocketManager manager = new StateSocketManager(this, SelectionKey.OP_WRITE);
             manager.init();
             selector.register(socket, manager);
+
+            this.dirtyState = false;
 
         } catch (IOException e) {
             e.printStackTrace();

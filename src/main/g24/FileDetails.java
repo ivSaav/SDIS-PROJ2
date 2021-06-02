@@ -57,11 +57,9 @@ public class FileDetails implements Serializable {
 
     @Override
     public String toString() {
-        return "FileDetails{" +
-                "hash='" + hash + '\'' +
-                ", size=" + size +
-                ", desiredRepDegree=" + desiredRepDegree +
-                ", copies=" + copies +
-                '}';
+        return "hash=" + hash.substring(0, 6) +
+                "\tsize=" + size / 1000 + "KB" +
+                "\tdesiredRepDegree=" + desiredRepDegree +
+                "\tcopies=" + copies;
     }
 }

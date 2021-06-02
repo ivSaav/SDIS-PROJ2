@@ -77,6 +77,9 @@ public class Node implements INode {
     public int get_port() throws RemoteException { return this.port; }
 
     private boolean is_in_successor_range(int id) throws RemoteException {
+        if (!isAlive(successor))
+            successor = this.find_next_live();
+            
         int succ_id = successor.get_id();
         if (succ_id > this.id) {
             // Regular interval
@@ -122,6 +125,9 @@ public class Node implements INode {
         for (int i = CHORD_BITS; i > 0; i--) {
             INode finger = fingers.get(i);
 
+            if (!isAlive(finger))
+                continue;
+
             if (finger != null && is_in_range(this.id, id, finger.get_id()))
                 return finger;
         }
@@ -152,7 +158,7 @@ public class Node implements INode {
             if (isAlive(fingers.get(i)))
                 return fingers.get(i);
         }
-        return this.predecessor;
+        return this;
     }
 
     /**
@@ -204,13 +210,6 @@ public class Node implements INode {
             successor = this.find_next_live();
 
         fingers.set(nextFingerCheck, find_successor(id + (int) Math.pow(2, nextFingerCheck)));
-
-        // System.out.println("\n");
-
-        // System.out.println("NEXT " + nextFingerCheck + "\n" + (id + (int) Math.pow(2, nextFingerCheck-1)) + "\n");
-        // for (INode node : fingers) {
-        //     System.out.print(node != null ? node.get_id()+ " " : "" );
-        // }
     }
 
     /**

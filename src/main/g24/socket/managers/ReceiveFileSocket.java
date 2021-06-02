@@ -43,6 +43,10 @@ public class ReceiveFileSocket implements ISocketManager {
         this(peer, message, null, onTransferEnd, null);
     }
 
+    public ReceiveFileSocket(Peer peer, ISocketFileMessage message, Path destination, Supplier<ISocketManager> onTransferEnd) {
+        this(peer, message, destination, onTransferEnd, null);
+    }
+
     public ReceiveFileSocket(Peer peer, ISocketFileMessage message, Path destination, GeneralMonitor resolve) {
         this(peer, message, destination, null, resolve);
     }

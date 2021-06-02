@@ -45,7 +45,6 @@ public class SocketManager implements ISocketManager {
                 readPurpose(key);
             }
         } else {
-            System.out.println("uwu select");
             if (key.isConnectable()) {
                 try {
                     if (((SocketChannel) key.channel()).finishConnect()) {

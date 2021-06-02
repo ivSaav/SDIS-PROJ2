@@ -66,15 +66,47 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                         });
                     }
 
-                    System.err.println("NOT YET IMPLEMENTED");
+                    System.err.println("BACKUP TO ANOTHER NODE DUE TO LACK OF STORAGE NOT YET IMPLEMENTED");
                     yield null;
                 }
 
                 case REPLICATE -> {
                     ReplicateMessage fileMessage = (ReplicateMessage) message;
-                    AckMessage reply = new AckMessage(peer.get_id(), peer.hasCapacity(fileMessage.get_size()));
-                    reply.send((SocketChannel) key.channel());
-                    yield reply.get_status() ? new ReceiveFileSocket(peer, fileMessage) : null;
+
+                    if (fileMessage.origin_id == peer.get_id())
+                        yield null;
+
+                    boolean decreased = peer.hasCapacity(fileMessage.file_size);
+                    if (decreased) {
+                        ReplicateDispatcher.initiateReplicate(peer, fileMessage.filehash);
+
+                        if (fileMessage.rep_degree - 1 <= 0)
+                            yield null;
+                    }
+
+                    // Redirect to successor
+                    SocketChannel channel = SocketChannel.open();
+                    channel.configureBlocking(false);
+                    channel.connect(peer.get_successor().get_socket_address());
+
+                    ReplicateMessage chainMessage = ReplicateMessage.from(peer, fileMessage, decreased);
+                    ISocketManager chainManager = new SocketManager(() -> {
+                        try {
+                            chainMessage.send(channel);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        return null;
+                    });
+                    peer.getSelector().register(channel, chainManager);
+
+                    yield null;
+                }
+
+                case REPLICATED -> {
+                    ReplicatedMessage replicated = (ReplicatedMessage) message;
+                    peer.addResponsible(replicated.filehash, replicated.sender_id);
+                    yield null;
                 }
 
                 case DELKEY -> {
@@ -85,7 +117,7 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                     yield null;
                 }
 
-                case DELCOPY -> { 
+                case DELCOPY -> {
                     ISocketFileMessage deleteMessage = (ISocketFileMessage) message;
                     peer.deleteFile(deleteMessage.get_filehash());
                     yield null; // delete copy messages don't require Acknowledgements

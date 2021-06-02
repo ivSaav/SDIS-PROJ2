@@ -284,6 +284,19 @@ public class Peer extends Node implements ClientPeerProtocol {
         return this.fileKeys.containsKey(fileKey);
     }
 
+    public void addResponsible(String filehash, int node_id) {
+        int key = chordID(filehash);
+        Map<String, FileDetails> files = fileKeys.get(key);
+        if (files == null)
+            return;
+
+        FileDetails fd = files.get(filehash);
+        if (fd == null)
+            return;
+
+        fd.addCopy(node_id);
+    }
+
     public boolean storesFile(String filehash) {
         return this.stored.contains(filehash);
     }

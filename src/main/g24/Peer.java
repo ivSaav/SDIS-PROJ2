@@ -45,7 +45,7 @@ public class Peer extends Node implements ClientPeerProtocol {
     private long maxSpace; // max space in KBytes (1000 bytes)
     private long diskUsage; // disk usage in KBytes (1000 bytes)
 
-    private Map<Integer, PeerInfo> peerBackup;
+    private final Map<Integer, PeerInfo> peerBackup;
 
     // PEER
     public Peer(InetAddress addr, int port) {
@@ -112,29 +112,22 @@ public class Peer extends Node implements ClientPeerProtocol {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleWithFixedDelay(() -> {
             try {
-                this.check_predecessor();
                 this.stabilize();
+                this.fix_fingers();
+                this.check_predecessor();
 
-//                this.fix_fingers();
-
-                if (dirtyState) {
-                    this.backupState();
-                }
             } catch (Exception e) {
                 System.err.println("[X] Maintenance error");
                 e.printStackTrace();
             }
-        }, 500, 1000, TimeUnit.MILLISECONDS);
+        }, 500, 500, TimeUnit.MILLISECONDS);
 
         ScheduledExecutorService fingerFixer = Executors.newSingleThreadScheduledExecutor();
         fingerFixer.scheduleWithFixedDelay(() -> {
-            try {
-                this.fix_fingers();
-            } catch (Exception e) {
-                System.err.println("[X] Maintenance error");
-                e.printStackTrace();
+            if (this.dirtyState) {
+                this.backupState();
             }
-        }, 750, 500, TimeUnit.MILLISECONDS);
+        }, 5000, 5000, TimeUnit.MILLISECONDS);
 
         ExecutorService tcpService = Executors.newSingleThreadExecutor();
         tcpService.execute(selector);
@@ -637,6 +630,9 @@ public class Peer extends Node implements ClientPeerProtocol {
 
         try {
             SocketChannel socket = SocketChannel.open();
+
+            if (!isAlive(this.get_successor()))
+                return;
             socket.connect(this.get_successor().get_socket_address());
 
             message.send(socket);

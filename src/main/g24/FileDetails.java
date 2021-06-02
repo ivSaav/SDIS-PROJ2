@@ -42,7 +42,10 @@ public class FileDetails implements Serializable {
 
     public List<Integer> getFileCopies() { return copies; }
 
-    public void addCopy(int peerID) { this.copies.add(peerID); }
+    public void addCopy(int peerID) {
+        if (!copies.contains(peerID))
+            this.copies.add(peerID);
+    }
 
     public void removeCopy(int peerID) {
         int idx = this.copies.indexOf(peerID);

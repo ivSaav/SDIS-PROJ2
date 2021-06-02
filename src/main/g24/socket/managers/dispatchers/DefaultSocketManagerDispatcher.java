@@ -5,6 +5,7 @@ import main.g24.socket.managers.ISocketManager;
 import main.g24.socket.managers.StateSocketManager;
 import main.g24.socket.managers.ReceiveFileSocket;
 import main.g24.socket.managers.SendFileSocket;
+import main.g24.socket.managers.SocketManager;
 import main.g24.socket.messages.*;
 
 import java.io.IOException;
@@ -13,6 +14,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.rmi.RemoteException;
 import java.util.Collection;
 
 
@@ -32,20 +34,81 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                     BackupMessage fileMessage = (BackupMessage) message;
                     if (peer.hasCapacity(fileMessage.get_size())) {
                         peer.addFileToKey(fileMessage.get_filehash(), fileMessage.get_size(), fileMessage.get_rep_degree(), this.peer.get_id());
-                        peer.addStoredFile(fileMessage.get_filehash(), fileMessage.file_size);
-                        peer.backupState();
-                        yield new ReceiveFileSocket(peer, (ISocketFileMessage) message, true);
+                        peer.addStoredFile(fileMessage.get_filehash(), fileMessage.get_size());
+
+                        yield new ReceiveFileSocket(peer, (ISocketFileMessage) message, () -> {
+                            AckMessage ack = new AckMessage(peer.get_id(), true);
+                            try {
+                                ack.send((SocketChannel) key.channel());
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+
+                            // Replication go bbbbrrrrr
+                            ReplicateMessage repl = ReplicateMessage.from(peer, fileMessage.filehash, fileMessage.file_size, fileMessage.rep_degree - 1);
+                            try {
+                                SocketChannel socket = SocketChannel.open();
+                                socket.configureBlocking(false);
+                                socket.connect(peer.get_successor().get_socket_address());
+
+                                ISocketManager repl_manager = new SocketManager(() -> {
+                                    try {
+                                        repl.send(socket);
+                                    } catch (IOException e) {
+                                        e.printStackTrace();
+                                    }
+                                    return null;
+                                });
+
+                                peer.getSelector().register(socket, repl_manager);
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                            return null;
+                        });
                     }
 
-                    System.err.println("NOT YET IMPLEMENTED");
+                    System.err.println("BACKUP TO ANOTHER NODE DUE TO LACK OF STORAGE NOT YET IMPLEMENTED");
                     yield null;
                 }
 
                 case REPLICATE -> {
                     ReplicateMessage fileMessage = (ReplicateMessage) message;
-                    AckMessage reply = new AckMessage(peer.get_id(), peer.hasCapacity(fileMessage.get_size()));
-                    reply.send((SocketChannel) key.channel());
-                    yield reply.get_status() ? new ReceiveFileSocket(peer, fileMessage) : null;
+
+                    if (fileMessage.origin_id == peer.get_id())
+                        yield null;
+
+                    boolean decreased = peer.hasCapacity(fileMessage.file_size);
+                    if (decreased) {
+                        ReplicateDispatcher.initiateReplicate(peer, fileMessage.filehash);
+
+                        if (fileMessage.rep_degree - 1 <= 0)
+                            yield null;
+                    }
+
+                    // Redirect to successor
+                    SocketChannel channel = SocketChannel.open();
+                    channel.configureBlocking(false);
+                    channel.connect(peer.get_successor().get_socket_address());
+
+                    ReplicateMessage chainMessage = ReplicateMessage.from(peer, fileMessage, decreased);
+                    ISocketManager chainManager = new SocketManager(() -> {
+                        try {
+                            chainMessage.send(channel);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        return null;
+                    });
+                    peer.getSelector().register(channel, chainManager);
+
+                    yield null;
+                }
+
+                case REPLICATED -> {
+                    ReplicatedMessage replicated = (ReplicatedMessage) message;
+                    peer.addResponsible(replicated.filehash, replicated.sender_id);
+                    yield null;
                 }
 
                 case DELKEY -> {
@@ -56,7 +119,7 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                     yield null;
                 }
 
-                case DELCOPY -> { 
+                case DELCOPY -> {
                     ISocketFileMessage deleteMessage = (ISocketFileMessage) message;
                     peer.deleteFile(deleteMessage.get_filehash());
                     yield null; // delete copy messages don't require Acknowledgements

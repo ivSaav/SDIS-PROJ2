@@ -16,7 +16,7 @@ public class Node implements INode {
     protected static final int CHORD_BITS = 8, CHORD_SIZE = (int) Math.pow(2,  CHORD_BITS);
 
     protected final int id;
-    private int nextFingerCheck = 1;
+    private int nextFingerCheck = 0;
     private INode predecessor, successor;
     protected final InetAddress addr;
     protected final int port;
@@ -29,7 +29,7 @@ public class Node implements INode {
         this.port = port;
         this.fingers = new ArrayList<>(Arrays.asList(new INode[CHORD_BITS+1]));
 
-        for (int i = 1; i < fingers.size(); i++) {
+        for (int i = 0; i < fingers.size(); i++) {
             fingers.set(i, this);
         }
     }
@@ -122,7 +122,7 @@ public class Node implements INode {
      */
     @Override
     public INode closest_preceding_node(int id) throws RemoteException {
-        for (int i = CHORD_BITS; i > 0; i--) {
+        for (int i = CHORD_BITS - 1; i >= 0; i--) {
             INode finger = fingers.get(i);
 
             if (!isAlive(finger))
@@ -154,7 +154,7 @@ public class Node implements INode {
     }
 
     public INode find_next_live() {
-        for (int i = 1; i<this.fingers.size(); i++) {
+        for (int i = 0; i<this.fingers.size() - 1; i++) {
             if (isAlive(fingers.get(i)))
                 return fingers.get(i);
         }
@@ -205,12 +205,12 @@ public class Node implements INode {
      */
     @Override
     public void fix_fingers() throws RemoteException {
-        nextFingerCheck = (nextFingerCheck + 1) % CHORD_BITS + 1;
-
         if (!isAlive(successor))
             successor = this.find_next_live();
 
         fingers.set(nextFingerCheck, find_successor(id + (int) Math.pow(2, nextFingerCheck)));
+
+        nextFingerCheck = (nextFingerCheck + 1) % CHORD_BITS;
     }
 
     /**

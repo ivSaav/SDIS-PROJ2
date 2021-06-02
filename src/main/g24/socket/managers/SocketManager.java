@@ -11,6 +11,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Supplier;
 
 
 import static main.g24.Peer.BLOCK_SIZE;
@@ -21,19 +22,50 @@ public class SocketManager implements ISocketManager {
 
     private final ByteBuffer buffer = ByteBuffer.allocate(BLOCK_SIZE);
 
-    private final ISocketManagerDispatcher dispatcher;
+    private ISocketManagerDispatcher dispatcher = null;
+    private final Supplier<ISocketManager> connect;
 
     public SocketManager(Peer peer) {
         this.dispatcher = new DefaultSocketManagerDispatcher(peer);
+        this.connect = null;
     }
 
     public SocketManager(ISocketManagerDispatcher dispatcher) {
         this.dispatcher = dispatcher;
+        this.connect = null;
+    }
+
+    public SocketManager(Supplier<ISocketManager> connect) {
+        this.dispatcher = null;
+        this.connect = connect;
     }
 
     public void onSelect(SelectionKey key) {
-        if (key.isReadable()) {
-            readPurpose(key);
+        if (this.connect == null) {
+            if (key.isReadable()) {
+                readPurpose(key);
+            }
+        } else {
+            if (key.isConnectable()) {
+                try {
+                    if (((SocketChannel) key.channel()).finishConnect()) {
+                        // Connected, move on to the next step
+                        ISocketManager nextManager = connect.get();
+                        if (nextManager == null) {
+                            key.channel().close();
+                        } else {
+                            ISocketManager.transitionTo(key, nextManager);
+                        }
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    try {
+                        key.channel().close();
+                    } catch (IOException ioException) {
+                        ioException.printStackTrace();
+                    }
+                }
+            }
         }
     }
 
@@ -42,7 +74,7 @@ public class SocketManager implements ISocketManager {
 
     @Override
     public int interestOps() {
-        return SelectionKey.OP_READ;
+        return connect == null ? SelectionKey.OP_READ : SelectionKey.OP_CONNECT;
     }
 
     private void readPurpose(SelectionKey key) {
@@ -72,7 +104,6 @@ public class SocketManager implements ISocketManager {
         }
     }
 
-    @SuppressWarnings("MagicConstant")
     private boolean parseRequest(SelectionKey key, String request) {
 
         String[] params = request.split(MESSAGE_TERMINATOR);
@@ -88,9 +119,7 @@ public class SocketManager implements ISocketManager {
             if (iSocketManager == null)
                 return false;
 
-            iSocketManager.init();
-            key.interestOps(iSocketManager.interestOps());
-            key.attach(iSocketManager);
+            ISocketManager.transitionTo(key, iSocketManager);
 
             return true;
         } catch (IOException e) {

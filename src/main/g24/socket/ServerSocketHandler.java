@@ -78,6 +78,8 @@ public class ServerSocketHandler implements Runnable {
 
     @SuppressWarnings("MagicConstant")
     public void register(SocketChannel socket, ISocketManager manager) throws IOException {
+        manager.init();
+
         socket.configureBlocking(false);
         socket.register(selector, manager.interestOps(), manager);
 

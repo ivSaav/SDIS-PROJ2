@@ -12,6 +12,7 @@ public abstract class SocketMessageFactory {
            case ACK -> AckMessage.from(args);
            case BACKUP -> BackupMessage.from(args);
            case REPLICATE -> ReplicateMessage.from(args);
+           case REPLICATED -> ReplicatedMessage.from(args);
            case DELKEY -> DeleteKeyMessage.from(args);
            case DELCOPY -> DeleteCopyMessage.from(args);
            case REMOVED -> RemovedMessage.from(args);

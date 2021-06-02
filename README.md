@@ -1,6 +1,6 @@
 # SDIS Project
 
-SDIS Project for group T4G24.
+SDIS Project for group T5G24.
 
 Group members:
 

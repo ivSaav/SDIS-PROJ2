@@ -1,6 +1,8 @@
 package main.g24.socket.managers.dispatchers;
 
+import main.g24.FileDetails;
 import main.g24.Peer;
+import main.g24.chord.Node;
 import main.g24.socket.managers.ISocketManager;
 import main.g24.socket.managers.StateSocketManager;
 import main.g24.socket.managers.ReceiveFileSocket;
@@ -14,7 +16,6 @@ import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.rmi.RemoteException;
 import java.util.Collection;
 
 
@@ -167,6 +168,28 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                     FileExistsMessage exists = (FileExistsMessage) message;
                     AckMessage reply = new AckMessage(peer.get_id(), peer.isResponsible(exists.filehash));
                     reply.send((SocketChannel) key.channel());
+                    yield null;
+                }
+
+                case REPLLOST -> {
+                    ReplicationLostMessage lost = (ReplicationLostMessage) message;
+                    FileDetails fd;
+                    if ((fd = peer.removeTrackedCopy(lost.filehash, lost.peer_lost)) != null && fd.lacksReplication()) {
+                        ReplicateMessage replMessage = ReplicateMessage.from(peer, lost.filehash, fd.getSize(), fd.missingReplications());
+
+                        SocketChannel socket = SocketChannel.open();
+                        socket.configureBlocking(false);
+                        socket.connect(peer.get_successor().get_socket_address());
+
+                        peer.getSelector().register(socket, new SocketManager(() -> {
+                            try {
+                                replMessage.send(socket);
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                            return null;
+                        }));
+                    }
                     yield null;
                 }
 

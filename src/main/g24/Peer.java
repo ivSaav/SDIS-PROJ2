@@ -115,12 +115,11 @@ public class Peer extends Node implements ClientPeerProtocol {
                 this.stabilize();
                 this.fix_fingers();
                 this.check_predecessor();
-
             } catch (Exception e) {
                 System.err.println("[X] Maintenance error");
                 e.printStackTrace();
             }
-        }, 500, 500, TimeUnit.MILLISECONDS);
+        }, 500, 1000, TimeUnit.MILLISECONDS);
 
         ScheduledExecutorService stateBackup = Executors.newSingleThreadScheduledExecutor();
         stateBackup.scheduleWithFixedDelay(() -> {
@@ -232,9 +231,9 @@ public class Peer extends Node implements ClientPeerProtocol {
     }
 
     public void addStoredFile(String filehash, long fileSize) {
-        this.dirtyState = true;
         this.stored.add(filehash);
         this.increaseDiskUsage(fileSize);
+        this.dirtyState = true;
     }
 
     @Override
@@ -512,6 +511,7 @@ public class Peer extends Node implements ClientPeerProtocol {
 
         ret.append("max capacity: ").append(this.maxSpace/1000).append(" KB\n");
         ret.append("used: ").append(this.diskUsage/1000).append(" KB\n");
+        ret.append("dirty: ").append(this.dirtyState).append("\n");
 
         if (!this.fileKeys.isEmpty()) {
             ret.append("\n======= OWNED  KEYS ========\n");
@@ -609,14 +609,36 @@ public class Peer extends Node implements ClientPeerProtocol {
 
         this.mergeFileKeys(info);
 
-        // TODO replicate if peer who died had a stored copy which he was responsible for
-        this.stored.addAll(info.storedFiles);
+        // Notify for replication
+        for (String hash: info.storedFiles) {
+            try {
+                ReplicationLostMessage lost = new ReplicationLostMessage(get_id(), info.id, hash);
+
+                int file_key = chordID(hash);
+                INode file_owner = find_successor(file_key);
+
+                SocketChannel socket = SocketChannel.open();
+                socket.configureBlocking(false);
+                socket.connect(file_owner.get_socket_address());
+
+                selector.register(socket, new SocketManager(() -> {
+                    try {
+                        lost.send(socket);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    return null;
+                }));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
 
         System.out.println("[#] " + info.id + " DEATH");
         for (Map.Entry<Integer, Map<String, FileDetails>> fdMap : info.fileKeys.entrySet()) {
             int key = fdMap.getKey();
-            System.out.println("  KEY: " + key);
-            for (FileDetails fd : info.fileKeys.get(key).values()) 
+            System.out.println(" INHERITED KEY: " + key);
+            for (FileDetails fd : info.fileKeys.get(key).values())
                 System.out.println("    | " + fd);
         }
 

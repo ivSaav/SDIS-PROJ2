@@ -40,6 +40,14 @@ public class FileDetails implements Serializable {
 
     public int getPerceivedReplication() { return copies.size(); }
 
+    public boolean lacksReplication() {
+        return this.getPerceivedReplication() < this.getDesiredReplication();
+    }
+
+    public int missingReplications() {
+        return Math.max(0, getDesiredReplication() - getPerceivedReplication());
+    }
+
     public List<Integer> getFileCopies() { return copies; }
 
     public void addCopy(int peerID) {

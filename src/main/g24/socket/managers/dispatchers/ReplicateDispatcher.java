@@ -22,6 +22,8 @@ public class ReplicateDispatcher implements ISocketManagerDispatcher {
     private final String fileHash;
     private final Path path;
 
+    private long size;
+
     protected ReplicateDispatcher(Peer peer, int key, int last_hop, String fileHash, Path path) {
         this.peer = peer;
         this.key = key;
@@ -31,6 +33,8 @@ public class ReplicateDispatcher implements ISocketManagerDispatcher {
     }
 
     private ISocketManager onFileRetrieval() {
+        peer.addStoredFile(fileHash, size);
+
         // Notify to increase the rep_degree
         try {
             INode node = peer.find_successor(key);
@@ -62,6 +66,7 @@ public class ReplicateDispatcher implements ISocketManagerDispatcher {
         return switch (message.get_type()) {
             case FILEHERE -> {
                 FileHereMessage filehere = (FileHereMessage) message;
+                this.size = filehere.size;
                 if (filehere.file_at_id == last_hop) {
                     // File will be transfered
                     yield new ReceiveFileSocket(peer, filehere, this::onFileRetrieval);

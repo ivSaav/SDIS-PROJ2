@@ -20,6 +20,7 @@ public abstract class SocketMessageFactory {
            case FILEHERE -> FileHereMessage.from(args);
            case STATE -> StateMessage.from(args);
            case FILEEXISTS -> FileExistsMessage.from(args);
+           case REPLLOST -> ReplicationLostMessage.from(args);
            default -> null;
        };
     }

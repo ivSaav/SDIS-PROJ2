@@ -43,7 +43,7 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                             }
 
                             // Replication go bbbbrrrrr
-                            ReplicateMessage repl = ReplicateMessage.from(peer, fileMessage.filehash, fileMessage.file_size, fileMessage.rep_degree);
+                            ReplicateMessage repl = ReplicateMessage.from(peer, fileMessage.filehash, fileMessage.file_size, fileMessage.rep_degree - 1);
                             try {
                                 SocketChannel socket = SocketChannel.open();
                                 socket.configureBlocking(false);

@@ -2,6 +2,8 @@ package main.g24.socket.messages;
 
 public class ReplicatedMessage implements ISocketMessage {
 
+    // <PROTOCOL> <SENDER_ID> <FILEHASH>
+
     public final int sender_id;
     public final String filehash;
 

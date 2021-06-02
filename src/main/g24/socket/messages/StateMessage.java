@@ -5,7 +5,7 @@ import java.rmi.RemoteException;
 import main.g24.chord.INode;
 
 public class StateMessage implements ISocketMessage {
-   // <PROTOCOL> <SENDER_ID> <SENDER_IP> <SENDER_PORT> <FILEHASH> <FILE_SIZE>
+   // <PROTOCOL> <SENDER_ID> <SENDER_IP> <SENDER_PORT>
 
    public final int sender_id, sender_port;
    public final String sender_ip;

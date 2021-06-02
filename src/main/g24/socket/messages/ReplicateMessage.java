@@ -5,7 +5,7 @@ import main.g24.chord.INode;
 import java.rmi.RemoteException;
 
 public class ReplicateMessage implements ISocketFileMessage {
-    // <PROTOCOL> <SENDER_ID> <SENDER_IP> <SENDER_PORT> <FILEHASH> <FILE_SIZE>
+    // <PROTOCOL> <SENDER_ID> <SENDER_IP> <SENDER_PORT> <FILEHASH> <FILE_SIZE> <REP_DEGREE>
 
     public final int sender_id, origin_id, origin_port, rep_degree;
     public final String origin_ip;

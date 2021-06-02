@@ -6,6 +6,7 @@ public enum Type {
     DELCOPY,
     GETFILE,
     FILEHERE,
+    FILEEXISTS,
     REPLICATE,
     REPLICATED,
     ACK,

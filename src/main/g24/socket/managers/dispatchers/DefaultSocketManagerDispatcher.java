@@ -31,6 +31,12 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
             return switch (message.get_type()) {
                 case BACKUP -> {
                     BackupMessage fileMessage = (BackupMessage) message;
+                    boolean hadOld = peer.isResponsibleForFile(fileMessage.filehash);
+
+                    if (hadOld) {
+                        peer.deleteFileCopies(fileMessage.get_filehash());
+                    }
+
                     if (peer.hasCapacity(fileMessage.get_size())) {
                         peer.addFileToKey(fileMessage.get_filehash(), fileMessage.get_size(), fileMessage.get_rep_degree(), this.peer.get_id());
                         peer.addStoredFile(fileMessage.get_filehash());
@@ -151,6 +157,13 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                     }
                     reply.send((SocketChannel) key.channel());
                     yield futureManager;
+                }
+
+                case FILEEXISTS -> {
+                    FileExistsMessage exists = (FileExistsMessage) message;
+                    AckMessage reply = new AckMessage(peer.get_id(), peer.isResponsible(exists.filehash));
+                    reply.send((SocketChannel) key.channel());
+                    yield null;
                 }
 
                 default -> null;

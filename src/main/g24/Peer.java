@@ -109,8 +109,8 @@ public class Peer extends Node implements ClientPeerProtocol {
         }
 
         // chord stabilization protocol
-        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-        scheduler.scheduleWithFixedDelay(() -> {
+        ScheduledExecutorService maintenance = Executors.newSingleThreadScheduledExecutor();
+        maintenance.scheduleWithFixedDelay(() -> {
             try {
                 this.stabilize();
                 this.fix_fingers();
@@ -122,8 +122,8 @@ public class Peer extends Node implements ClientPeerProtocol {
             }
         }, 500, 500, TimeUnit.MILLISECONDS);
 
-        ScheduledExecutorService fingerFixer = Executors.newSingleThreadScheduledExecutor();
-        fingerFixer.scheduleWithFixedDelay(() -> {
+        ScheduledExecutorService stateBackup = Executors.newSingleThreadScheduledExecutor();
+        stateBackup.scheduleWithFixedDelay(() -> {
             if (this.dirtyState) {
                 this.backupState();
             }

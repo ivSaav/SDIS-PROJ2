@@ -468,12 +468,12 @@ public class Peer extends Node implements ClientPeerProtocol {
 
     @Override
     public String state() throws RemoteException {
-        StringBuilder ret = new StringBuilder("\n========== INFO ==========\n");
+        StringBuilder ret = new StringBuilder("\n=========== INFO ===========\n");
 
         ret.append(String.format("peerID: %d \nmax capacity: %d KB\nused: %d KB\n", this.id, this.maxSpace, this.diskUsage));
 
         if (!this.fileKeys.isEmpty()) {
-            ret.append("\n========== OWNED KEYS ===========\n");
+            ret.append("\n======= OWNED  KEYS ========\n");
             for (Map.Entry<Integer, Map<String, FileDetails>> entry : this.fileKeys.entrySet()) {
                 ret.append(entry.getKey()).append("\n");
 
@@ -481,7 +481,7 @@ public class Peer extends Node implements ClientPeerProtocol {
 
                 for (FileDetails fd: files.values()) {
                     ret.append("\t").append(fd.getHash(), 0, 6).append("\n");
-                    ret.append("\tStored at: ");
+                    ret.append("\tStored ").append(fd.getFileCopies().size()).append(" times at: ");
 
                     for (int stored_id: fd.getFileCopies())
                         ret.append(stored_id).append(" ");
@@ -493,8 +493,16 @@ public class Peer extends Node implements ClientPeerProtocol {
 
         if (!this.stored.isEmpty()) {
             ret.append("\n========== STORED ==========\n");
-            for (String hash : this.stored)
-                ret.append(hash, 0, 6).append("\n");
+            int col = 1;
+            for (String hash : this.stored) {
+                if (col > 3) {
+                    ret.append(hash, 0, 6).append("\n");
+                    col = 1;
+                } else {
+                    ret.append(hash, 0, 6).append("   ");
+                    col++;
+                }
+            }
         }
 
         return ret.toString();

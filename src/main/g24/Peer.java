@@ -40,8 +40,6 @@ public class Peer extends Node implements ClientPeerProtocol {
     private final Set<String> stored;
     private final Map<Integer, Map<String, FileDetails>> fileKeys;
 
-    private final Map<String, GeneralMonitor> monitors;
-
     private boolean dirtyState;
 
     private long maxSpace; // max space in KBytes (1000 bytes)
@@ -60,12 +58,7 @@ public class Peer extends Node implements ClientPeerProtocol {
         this.stored = ConcurrentHashMap.newKeySet();
         this.fileKeys = new ConcurrentHashMap<>();
 
-        // this.predFileKeys = new ConcurrentHashMap<>();
-        // this.predStored = ConcurrentHashMap.newKeySet();
-
         this.peerBackup = new ConcurrentHashMap<>();
-
-        this.monitors = new ConcurrentHashMap<>();
 
         this.dirtyState = false;
     }
@@ -159,6 +152,7 @@ public class Peer extends Node implements ClientPeerProtocol {
             Path filePath = Paths.get(path);
             long size = Files.size(filePath);
 
+
             String fileHash = SdisUtils.createFileHash(path, id);
             if (fileHash == null)
                 return "failure";
@@ -171,12 +165,16 @@ public class Peer extends Node implements ClientPeerProtocol {
 
             int file_key = chordID(fileHash);
             INode key_owner = find_successor(file_key);
+            SocketAddress key_owner_address = key_owner.get_socket_address();
+
+            // Actually do the backup
+            GeneralMonitor monitor = new GeneralMonitor();
 
             SocketChannel socket = SocketChannel.open();
             socket.configureBlocking(false);
-            socket.connect(key_owner.get_socket_address());
+            socket.connect(key_owner_address);
 
-            ISocketManager resolutionSocketManager = new SocketManager(AckNackDispatcher.resolveFilehash(this, fileHash));
+            ISocketManager resolutionSocketManager = new SocketManager(AckNackDispatcher.resolveMonitor(monitor));
             SendFileSocket sf = new SendFileSocket(filePath, resolutionSocketManager);
             ISocketManager iSocketManager = new SocketManager(() -> {
                 try {
@@ -188,10 +186,6 @@ public class Peer extends Node implements ClientPeerProtocol {
                 return sf;
             });
             selector.register(socket, iSocketManager);
-
-            // Wait for success or failure :)
-            GeneralMonitor monitor = new GeneralMonitor();
-            monitors.put(fileHash, monitor);
 
             if (monitor.await_resolution(5000))
                 return monitor.get_message();
@@ -281,6 +275,8 @@ public class Peer extends Node implements ClientPeerProtocol {
             socket.configureBlocking(false);
             socket.connect(respNode.get_socket_address());
 
+            GeneralMonitor monitor = new GeneralMonitor();
+
             ISocketManager resolutionSocketManager = new SocketManager(() -> {
                 try {
                     message.send(socket);
@@ -289,15 +285,12 @@ public class Peer extends Node implements ClientPeerProtocol {
                     return null;
                 }
 
-                return new SocketManager(AckNackDispatcher.resolveFilehash(this, fileHash));
+                return new SocketManager(AckNackDispatcher.resolveMonitor(monitor));
             });
 
             selector.register(socket, resolutionSocketManager);
 
             // Wait for success or failure :)
-            GeneralMonitor monitor = new GeneralMonitor();
-            monitors.put(fileHash, monitor);
-
             if (monitor.await_resolution(5000))
                 return monitor.get_message();
 
@@ -312,6 +305,14 @@ public class Peer extends Node implements ClientPeerProtocol {
 
     public boolean isResponsible(String filehash) {
         return isResponsible(chordID(filehash));
+    }
+
+    public boolean isResponsibleForFile(String filehash) {
+        int key = chordID(filehash);
+        Map<String, FileDetails> files = fileKeys.get(key);
+        if (files == null)
+            return false;
+        return files.get(filehash) != null;
     }
 
     public boolean isResponsible(int fileKey) {
@@ -412,12 +413,6 @@ public class Peer extends Node implements ClientPeerProtocol {
             this.decreaseDiskUsage(size);
             this.stored.remove(fileHash);
 
-            // no stored files (remove subdirectories)
-            if (this.stored.isEmpty()) {
-                Files.deleteIfExists(path.getParent());
-                Files.deleteIfExists(path.getParent().getParent());
-            }
-
             return true;
         }
         catch (IOException e) {
@@ -450,7 +445,9 @@ public class Peer extends Node implements ClientPeerProtocol {
                 if (message == null)
                     continue;
 
-                ISocketManager resolutionSocketManager = new SocketManager(AckNackDispatcher.resolveFilehash(this, fileHash));
+                GeneralMonitor monitor = new GeneralMonitor();
+
+                ISocketManager resolutionSocketManager = new SocketManager(AckNackDispatcher.resolveMonitor(monitor));
 
                 try {
                     // connect to node responsible for this file
@@ -462,9 +459,6 @@ public class Peer extends Node implements ClientPeerProtocol {
                     selector.register(socket, resolutionSocketManager);
 
                     // Wait for success or failure :)
-                    GeneralMonitor monitor = new GeneralMonitor();
-                    monitors.put(fileHash, monitor);
-
                     // only delete file if responsible peer acknowledges
                     if (monitor.await_resolution(1000)) {
                         this.deleteFile(fileHash);
@@ -492,7 +486,7 @@ public class Peer extends Node implements ClientPeerProtocol {
         System.out.println("[-] Restoring file [" + fileHash.substring(0, 6) + "] with key [" + chordID(fileHash) + "]");
 
         GeneralMonitor monitor = new GeneralMonitor();
-        monitors.put(fileHash, monitor);
+//        monitors.put(fileHash, monitor);
 
         if (!RestoreDispatcher.initiateRestore(this, fileHash, path, monitor))
             return "failure";
@@ -564,10 +558,6 @@ public class Peer extends Node implements ClientPeerProtocol {
 
     public ServerSocketHandler getSelector() {
         return selector;
-    }
-
-    public GeneralMonitor getMonitor(String key) {
-        return monitors.get(key);
     }
 
     public String getPeerPath() {

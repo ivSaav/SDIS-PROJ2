@@ -19,6 +19,7 @@ public abstract class SocketMessageFactory {
            case GETFILE -> GetFileMessage.from(args);
            case FILEHERE -> FileHereMessage.from(args);
            case STATE -> StateMessage.from(args);
+           case FILEEXISTS -> FileExistsMessage.from(args);
            default -> null;
        };
     }

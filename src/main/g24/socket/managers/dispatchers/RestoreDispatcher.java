@@ -56,7 +56,6 @@ public class RestoreDispatcher implements ISocketManagerDispatcher {
                 AckMessage ack = (AckMessage) message;
                 if (!ack.get_status()) {
                     // NACK
-                    GeneralMonitor monitor = peer.getMonitor(fileHash);
                     if (monitor != null)
                         monitor.resolve("failure");
                 }

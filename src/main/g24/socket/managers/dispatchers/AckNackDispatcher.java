@@ -18,23 +18,18 @@ public class AckNackDispatcher implements ISocketManagerDispatcher {
         this.onNack = onNack;
     }
 
-    public static AckNackDispatcher resolveFilehash(Peer peer, String fileHash) {
+    public static AckNackDispatcher resolveMonitor(GeneralMonitor monitor) {
         return new AckNackDispatcher(
                 () -> {
-                    GeneralMonitor monitor = peer.getMonitor(fileHash);
-                    if (monitor != null)
-                        monitor.resolve("success");
+                    monitor.resolve("success");
                     return null;
                 },
                 () -> {
-                    GeneralMonitor monitor = peer.getMonitor(fileHash);
-                    if (monitor != null)
-                        monitor.resolve("failure");
+                    monitor.resolve("failure");
                     return null;
                 }
         );
     }
-
 
     @Override
     public ISocketManager dispatch(ISocketMessage message, SelectionKey key) {

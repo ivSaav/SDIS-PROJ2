@@ -14,7 +14,6 @@ import main.g24.socket.messages.DeleteCopyMessage;
 import main.g24.socket.messages.DeleteKeyMessage;
 import main.g24.socket.messages.DeleteMessage;
 import main.g24.socket.messages.RemovedMessage;
-import main.g24.socket.messages.GetFileMessage;
 
 import java.io.File;
 import java.io.IOException;
@@ -135,9 +134,10 @@ public class Peer extends Node implements ClientPeerProtocol {
             long size = Files.size(filePath);
 
             String fileHash = SdisUtils.createFileHash(path, id);
-
             if (fileHash == null)
                 return "failure";
+
+            System.out.println("[-] Backing up file [" + fileHash.substring(0, 6) + "] with key [" + chordID(fileHash) + "]");
 
             BackupMessage message = BackupMessage.from(this, fileHash, repDegree, size);
             if (message == null)
@@ -146,18 +146,22 @@ public class Peer extends Node implements ClientPeerProtocol {
             int file_key = chordID(fileHash);
             INode key_owner = find_successor(file_key);
 
-            System.out.println("[-] Backing up file [" + fileHash.substring(0, 6) + "] with key [" + file_key + "]");
-
             SocketChannel socket = SocketChannel.open();
+            socket.configureBlocking(false);
             socket.connect(key_owner.get_socket_address());
 
-            message.send(socket);
-
             ISocketManager resolutionSocketManager = new SocketManager(AckNackDispatcher.resolveFilehash(this, fileHash));
-
             SendFileSocket sf = new SendFileSocket(filePath, resolutionSocketManager);
-            sf.init();
-            selector.register(socket, sf);
+            ISocketManager iSocketManager = new SocketManager(() -> {
+                try {
+                    message.send(socket);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    return null;
+                }
+                return sf;
+            });
+            selector.register(socket, iSocketManager);
 
             // Wait for success or failure :)
             GeneralMonitor monitor = new GeneralMonitor();
@@ -243,14 +247,22 @@ public class Peer extends Node implements ClientPeerProtocol {
             return "failure";
 
         try {
-            ISocketManager resolutionSocketManager = new SocketManager(AckNackDispatcher.resolveFilehash(this, fileHash));
-
             // send delete message to the responsible peer
             SocketChannel socket = SocketChannel.open();
+            socket.configureBlocking(false);
             socket.connect(respNode.get_socket_address());
-            message.send(socket);
 
-            resolutionSocketManager.init();
+            ISocketManager resolutionSocketManager = new SocketManager(() -> {
+                try {
+                    message.send(socket);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    return null;
+                }
+
+                return new SocketManager(AckNackDispatcher.resolveFilehash(this, fileHash));
+            });
+
             selector.register(socket, resolutionSocketManager);
 
             // Wait for success or failure :)
@@ -277,6 +289,19 @@ public class Peer extends Node implements ClientPeerProtocol {
         return this.fileKeys.containsKey(fileKey);
     }
 
+    public void addResponsible(String filehash, int node_id) {
+        int key = chordID(filehash);
+        Map<String, FileDetails> files = fileKeys.get(key);
+        if (files == null)
+            return;
+
+        FileDetails fd = files.get(filehash);
+        if (fd == null)
+            return;
+
+        fd.addCopy(node_id);
+    }
+
     public boolean storesFile(String filehash) {
         return this.stored.contains(filehash);
     }
@@ -295,7 +320,7 @@ public class Peer extends Node implements ClientPeerProtocol {
      * Removes a file from storage
      * Sends DELCOPY messages to peers who have this file
      * Only called on DELKEY requests
-     * @param fileHash
+     * @param fileHash hash of file to delete copies of
      * @return
      */
     public boolean deleteFileCopies(String fileHash) {
@@ -372,7 +397,6 @@ public class Peer extends Node implements ClientPeerProtocol {
         }
     }
 
-
     @Override
     public String reclaim(int new_capacity) throws RemoteException {
 
@@ -416,8 +440,8 @@ public class Peer extends Node implements ClientPeerProtocol {
                     if (monitor.await_resolution(1000)) {
                         this.deleteFile(fileHash);
                     }
-                    else // couldn't reach responsible peer (ignore)
-                        continue;
+//                    else // couldn't reach responsible peer (ignore)
+//                        continue;
                 }
                 catch (IOException e) {
                     e.printStackTrace();
@@ -429,57 +453,36 @@ public class Peer extends Node implements ClientPeerProtocol {
     }
 
     @Override
-    public String restore(String path) throws RemoteException {
+    public String restore(String filename) throws RemoteException {
+        Path path = Paths.get(getRecoverPath(filename));
 
-        try {
-            Path filePath = Paths.get(getRecoverPath(path));
+        String fileHash = SdisUtils.createFileHash(filename, id);
+        if (fileHash == null)
+            return "failure";
 
-            String fileHash = SdisUtils.createFileHash(path, id);
-            if (fileHash == null)
-                return "failure";
+        System.out.println("[-] Restoring file [" + fileHash.substring(0, 6) + "] with key [" + chordID(fileHash) + "]");
 
-            GetFileMessage message = GetFileMessage.from(this, fileHash);
-            if (message == null)
-                return "failure";
+        GeneralMonitor monitor = new GeneralMonitor();
+        monitors.put(fileHash, monitor);
 
-            int file_key = chordID(fileHash);
-            INode key_owner = find_successor(file_key);
+        if (!RestoreDispatcher.initiateRestore(this, fileHash, path, monitor))
+            return "failure";
 
-            System.out.println("[-] Restoring file [" + fileHash.substring(0, 6) + "] with key [" + file_key + "]");
+        // Wait for success or failure :)
+        if (monitor.await_resolution(5000))
+            return monitor.get_message();
 
-            SocketChannel socket = SocketChannel.open();
-            socket.connect(key_owner.get_socket_address());
-
-            message.send(socket);
-
-            GeneralMonitor monitor = new GeneralMonitor();
-            monitors.put(fileHash, monitor);
-
-            ISocketManager restoreManager = new SocketManager(new RestoreDispatcher(this, key_owner.get_id(), fileHash, filePath, monitor));
-
-            restoreManager.init();
-            selector.register(socket, restoreManager);
-
-            // Wait for success or failure :)
-            if (monitor.await_resolution(5000))
-                return monitor.get_message();
-
-            return "timeout";
-        }
-        catch (IOException ioe) {
-            ioe.printStackTrace();
-        }
-        return "failure";
+        return "timeout";
     }
 
     @Override
     public String state() throws RemoteException {
-        StringBuilder ret = new StringBuilder("\n========== INFO ==========\n");
+        StringBuilder ret = new StringBuilder("\n=========== INFO ===========\n");
 
         ret.append(String.format("peerID: %d \nmax capacity: %d KB\nused: %d KB\n", this.id, this.maxSpace/1000, this.diskUsage/1000));
 
         if (!this.fileKeys.isEmpty()) {
-            ret.append("\n========== OWNED KEYS ===========\n");
+            ret.append("\n======= OWNED  KEYS ========\n");
             for (Map.Entry<Integer, Map<String, FileDetails>> entry : this.fileKeys.entrySet()) {
                 ret.append(entry.getKey()).append("\n");
 
@@ -487,7 +490,7 @@ public class Peer extends Node implements ClientPeerProtocol {
 
                 for (FileDetails fd: files.values()) {
                     ret.append("\t").append(fd.getHash(), 0, 6).append("\n");
-                    ret.append("\tStored at: ");
+                    ret.append("\tStored ").append(fd.getFileCopies().size()).append(" times at: ");
 
                     for (int stored_id: fd.getFileCopies())
                         ret.append(stored_id).append(" ");
@@ -499,13 +502,24 @@ public class Peer extends Node implements ClientPeerProtocol {
 
         if (!this.stored.isEmpty()) {
             ret.append("\n========== STORED ==========\n");
-            for (String hash : this.stored)
-                ret.append(hash, 0, 6).append("\n");
+            int col = 1;
+            for (String hash : this.stored) {
+                if (col > 3) {
+                    ret.append(hash, 0, 6).append("\n");
+                    col = 1;
+                } else {
+                    ret.append(hash, 0, 6).append("   ");
+                    col++;
+                }
+            }
         }
 
         return ret.toString();
     }
 
+    public ServerSocketHandler getSelector() {
+        return selector;
+    }
 
     public GeneralMonitor getMonitor(String key) {
         return monitors.get(key);

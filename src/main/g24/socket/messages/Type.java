@@ -7,6 +7,7 @@ public enum Type {
     GETFILE,
     FILEHERE,
     REPLICATE,
+    REPLICATED,
     ACK,
     REMOVED,
 }

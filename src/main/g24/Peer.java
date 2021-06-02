@@ -127,7 +127,7 @@ public class Peer extends Node implements ClientPeerProtocol {
             if (this.dirtyState) {
                 this.backupState();
             }
-        }, 5000, 5000, TimeUnit.MILLISECONDS);
+        }, 15000, 10000, TimeUnit.MILLISECONDS);
 
         ExecutorService tcpService = Executors.newSingleThreadExecutor();
         tcpService.execute(selector);

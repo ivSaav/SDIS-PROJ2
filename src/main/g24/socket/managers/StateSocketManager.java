@@ -16,24 +16,20 @@ import main.g24.Peer;
 public class StateSocketManager implements ISocketManager {
 
 
-    private final int recoverID;
     private final Peer peer;
     private ByteBuffer buffer;
     private int interestOp;
 
 
-    public StateSocketManager(Peer peer, int recoverID, int interestOp) {
+    public StateSocketManager(Peer peer, int interestOp) {
         this.peer = peer;
-        this.recoverID = recoverID;
         this.interestOp = interestOp;
     }
 
-    public StateSocketManager(Peer peer, int recoverID) {
+    public StateSocketManager(Peer peer) {
         this.peer = peer;
-        this.recoverID = recoverID;
         this.interestOp = SelectionKey.OP_READ;
     }
-
 
     @Override
     public void onSelect(SelectionKey key) {
@@ -71,7 +67,7 @@ public class StateSocketManager implements ISocketManager {
 
     @Override
     public int interestOps() {
-        return interestOp;
+        return this.interestOp;
     }
 
     @SuppressWarnings("MagicConstant")

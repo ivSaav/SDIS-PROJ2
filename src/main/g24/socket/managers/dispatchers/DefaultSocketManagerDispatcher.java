@@ -93,9 +93,7 @@ public class DefaultSocketManagerDispatcher implements ISocketManagerDispatcher 
                 }
 
                 case STATE -> {
-                    System.out.println("STATE MSG");
-                    StateMessage maintenanceMessage = (StateMessage) message;
-                    yield new StateSocketManager(peer, maintenanceMessage.sender_id);
+                    yield new StateSocketManager(peer);
                 }
 
                 default -> null;

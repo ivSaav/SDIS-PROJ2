@@ -126,6 +126,15 @@ public class Peer extends Node implements ClientPeerProtocol {
             }
         }, 500, 1000, TimeUnit.MILLISECONDS);
 
+        ScheduledExecutorService anotherOne = Executors.newSingleThreadScheduledExecutor();
+        anotherOne.scheduleAtFixedRate(() -> {
+            try {
+                this.fix_fingers();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }, 1500, 2000, TimeUnit.MILLISECONDS);
+
         ExecutorService tcpService = Executors.newSingleThreadExecutor();
         tcpService.execute(selector);
 
@@ -511,6 +520,8 @@ public class Peer extends Node implements ClientPeerProtocol {
                 ret.append(hash, 0, 6).append("\n");
         }
 
+        System.out.println("SUCC " + this.get_successor().get_id() + "PRED " + this.get_predecessor().get_id());
+
         return ret.toString();
     }
 
@@ -538,13 +549,24 @@ public class Peer extends Node implements ClientPeerProtocol {
 
     public void setPredecessorKeys(Map<Integer, Map<String, FileDetails>> keys) {
         this.predFileKeys = keys;
-        System.out.println(this.predFileKeys);
+        System.out.println(predFileKeys);
+    }
+
+    private void mergeFileKeys() {
+        for (Map.Entry<Integer, Map<String, FileDetails>> entry : this.predFileKeys.entrySet()) {
+            Map<String, FileDetails> filesOfKey = this.fileKeys.computeIfAbsent(entry.getKey(), k -> new ConcurrentHashMap<>());
+            
+            for (Map.Entry<String, FileDetails> fileEntry : entry.getValue().entrySet())
+                filesOfKey.put(fileEntry.getKey(), fileEntry.getValue());
+        }
     }
 
     @Override
     protected void on_predecessor_death() {
         super.on_predecessor_death();
-
+        this.mergeFileKeys();
+        System.out.println(this.fileKeys);
+        System.out.println(this.predFileKeys);
     }
 
     public void backupState() {
@@ -559,15 +581,14 @@ public class Peer extends Node implements ClientPeerProtocol {
 
             message.send(socket);
 
-            StateSocketManager manager = new StateSocketManager(this, id, SelectionKey.OP_WRITE);
+            StateSocketManager manager = new StateSocketManager(this, SelectionKey.OP_WRITE);
             manager.init();
             selector.register(socket, manager);
 
         } catch (IOException e) {
             e.printStackTrace();
             System.out.println("[X] Couldn't backup state.");
-        }
-        
+        } 
     }
 
     public static void main(String[] args) throws IOException {
